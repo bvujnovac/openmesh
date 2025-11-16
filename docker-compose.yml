@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # InfluxDB for metrics storage
   influxdb:
-    image: influxdb:2.7-alpine
+    image: docker.io/influxdb:2.7-alpine
     container_name: openmesh-influxdb
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
@@ -27,7 +27,7 @@ services:
 
   # Redis Cache & Message Broker
   redis:
-    image: redis:7-alpine
+    image: docker.io/redis:7-alpine
     container_name: openmesh-redis
     command: redis-server --appendonly yes
     volumes:
