@@ -1,0 +1,23 @@
+# Generated from pyproject.toml
+# For production use: pip install -r requirements.txt
+# For development: pip install -e ".[dev]"
+
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+sqlalchemy>=2.0.25
+alembic>=1.13.0
+pydantic>=2.6.0
+pydantic-settings>=2.1.0
+aiosqlite>=0.19.0
+redis>=5.0.1
+celery>=5.3.4
+python-multipart>=0.0.9
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+httpx>=0.26.0
+websockets>=12.0
+aiofiles>=23.2.1
+jinja2>=3.1.3
+pyyaml>=6.0.1
+click>=8.1.7
+influxdb-client>=1.40.0

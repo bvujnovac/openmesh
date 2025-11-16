@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  # InfluxDB for metrics storage
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: openmesh-influxdb
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: adminadmin
+      DOCKER_INFLUXDB_INIT_ORG: openmesh
+      DOCKER_INFLUXDB_INIT_BUCKET: metrics
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: openmesh-dev-token-change-in-production
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    ports:
+      - "8086:8086"
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - openmesh-network
+
+  # Redis Cache & Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: openmesh-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - openmesh-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: openmesh-backend
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////app/data/openmesh.db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: openmesh-dev-token-change-in-production
+      INFLUXDB_ORG: openmesh
+      INFLUXDB_BUCKET: metrics
+      ENVIRONMENT: development
+      DEBUG: "true"
+      HOST: 0.0.0.0
+      PORT: 8000
+    volumes:
+      - ./backend:/app/backend
+      - ./firmware:/app/firmware
+      - ./imagebuilder:/app/imagebuilder
+      - sqlite_data:/app/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - openmesh-network
+
+  # Celery Worker (for async tasks like image building)
+  celery-worker:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: openmesh-celery-worker
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////app/data/openmesh.db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: openmesh-dev-token-change-in-production
+      INFLUXDB_ORG: openmesh
+      INFLUXDB_BUCKET: metrics
+      ENVIRONMENT: development
+    volumes:
+      - ./backend:/app/backend
+      - ./firmware:/app/firmware
+      - ./imagebuilder:/app/imagebuilder
+      - sqlite_data:/app/data
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A backend.workers.celery_app worker --loglevel=info
+    networks:
+      - openmesh-network
+
+  # Nginx Reverse Proxy (optional, for production-like setup)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: openmesh-nginx
+  #   volumes:
+  #     - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+  #     - ./frontend/dist:/usr/share/nginx/html
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - openmesh-network
+
+networks:
+  openmesh-network:
+    driver: bridge
+
+volumes:
+  influxdb_data:
+  influxdb_config:
+  redis_data:
+  sqlite_data:
