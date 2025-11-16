@@ -1,7 +1,19 @@
 .PHONY: help dev stop build clean logs shell db-migrate db-upgrade test lint format
 
-# Auto-detect docker-compose command (V2 uses 'docker compose', V1 uses 'docker-compose')
-DOCKER_COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
+# Auto-detect container compose command (supports Podman and Docker)
+# Priority: podman compose > podman-compose > docker compose > docker-compose
+DOCKER_COMPOSE := $(shell \
+	if command -v podman >/dev/null 2>&1 && podman compose version >/dev/null 2>&1; then \
+		echo "podman compose"; \
+	elif command -v podman-compose >/dev/null 2>&1; then \
+		echo "podman-compose"; \
+	elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
+		echo "docker compose"; \
+	elif command -v docker-compose >/dev/null 2>&1; then \
+		echo "docker-compose"; \
+	else \
+		echo "docker-compose"; \
+	fi)
 
 help:
 	@echo "OpenMesh Platform - Development Commands"
