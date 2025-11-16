@@ -1,5 +1,9 @@
 """
 Database models for OpenMesh platform.
+
+Note: Metric models (DeviceMetric, BabelMetric, LinkMetric) are deprecated.
+Metrics are now stored in InfluxDB for better time-series performance.
+They are kept here for backward compatibility with migrations.
 """
 
 from backend.models.device import Device, DeviceStatus
@@ -17,7 +21,7 @@ __all__ = [
     # Firmware models
     "FirmwareBuild",
     "BuildStatus",
-    # Metric models
+    # Metric models (DEPRECATED - use InfluxDB instead)
     "DeviceMetric",
     "BabelMetric",
     "LinkMetric",

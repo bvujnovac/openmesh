@@ -1,6 +1,8 @@
 """
 Metrics models for time-series monitoring data.
-Stores device health, Babel routing metrics, and network statistics.
+NOTE: These models are deprecated and kept for reference only.
+Metrics are now stored in InfluxDB for better time-series performance.
+See backend/services/monitoring/influxdb_client.py for metrics storage.
 """
 
 from datetime import datetime

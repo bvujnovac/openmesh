@@ -18,14 +18,23 @@ class Base(DeclarativeBase):
 
 
 # Create async engine
-engine = create_async_engine(
-    str(settings.DATABASE_URL),
-    echo=settings.DEBUG,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
-    pool_pre_ping=True,
-    poolclass=NullPool if settings.ENVIRONMENT == "test" else None,
-)
+# SQLite doesn't use connection pooling, so we configure accordingly
+if settings.is_sqlite:
+    engine = create_async_engine(
+        str(settings.DATABASE_URL),
+        echo=settings.DEBUG,
+        connect_args={"check_same_thread": False},  # Allow multi-threading for SQLite
+    )
+else:
+    # PostgreSQL configuration (if using optional postgres support)
+    engine = create_async_engine(
+        str(settings.DATABASE_URL),
+        echo=settings.DEBUG,
+        pool_size=settings.DATABASE_POOL_SIZE,
+        max_overflow=settings.DATABASE_MAX_OVERFLOW,
+        pool_pre_ping=True,
+        poolclass=NullPool if settings.ENVIRONMENT == "test" else None,
+    )
 
 # Create async session factory
 AsyncSessionLocal = async_sessionmaker(
