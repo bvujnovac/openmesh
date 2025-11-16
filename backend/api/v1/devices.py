@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.database import get_db
+from backend.core.websocket import manager as ws_manager
 from backend.schemas.device import (
     DeviceCreate,
     DeviceUpdate,
@@ -206,6 +207,20 @@ async def device_heartbeat(
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
+    # Broadcast device status update via WebSocket
+    try:
+        await ws_manager.broadcast_device_update(
+            device_id=device.id,
+            data={
+                "status": device.status.value if device.status else "unknown",
+                "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+                "uptime_seconds": status_update.uptime_seconds,
+            },
+        )
+    except Exception as e:
+        # Log error but don't fail the heartbeat
+        print(f"Warning: Failed to broadcast device update via WebSocket: {e}")
+
     # Write metrics to InfluxDB (async, non-blocking)
     try:
         influx = get_influx_client()
@@ -243,6 +258,14 @@ async def device_heartbeat(
             influx.write_device_metric(
                 device_id=device.id, device_mac=device.mac_address, metrics=metrics
             )
+
+            # Broadcast metrics update via WebSocket
+            try:
+                await ws_manager.broadcast_device_metrics(
+                    device_id=device.id, metrics=metrics
+                )
+            except Exception as e:
+                print(f"Warning: Failed to broadcast metrics via WebSocket: {e}")
     except Exception as e:
         # Log error but don't fail the heartbeat
         print(f"Warning: Failed to write metrics to InfluxDB: {e}")

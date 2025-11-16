@@ -164,3 +164,22 @@ button {
   border-radius: var(--radius);
   border: 1px solid #fecaca;
 }
+
+/* Spinning animation for refresh buttons */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+/* Topology tooltip styles */
+.topology-tooltip {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
