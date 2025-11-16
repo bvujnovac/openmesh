@@ -183,8 +183,9 @@ export default function NetworkTopology({ data, height = 600 }) {
       event.subject.fy = null
     }
 
-    // Cleanup tooltip on unmount
+    // Cleanup tooltip and stop simulation on unmount to prevent memory leak
     return () => {
+      simulation.stop()
       tooltip.remove()
     }
   }, [data, height, navigate])

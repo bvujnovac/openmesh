@@ -44,12 +44,16 @@ class ConnectionManager:
         """
         self.active_connections.discard(websocket)
 
-        # Remove from all subscriptions
-        for device_id, subscribers in self.device_subscriptions.items():
-            subscribers.discard(websocket)
+        # Remove from all subscriptions and clean up empty sets to prevent memory leaks
+        for device_id in list(self.device_subscriptions.keys()):
+            self.device_subscriptions[device_id].discard(websocket)
+            if not self.device_subscriptions[device_id]:
+                del self.device_subscriptions[device_id]
 
-        for network_id, subscribers in self.network_subscriptions.items():
-            subscribers.discard(websocket)
+        for network_id in list(self.network_subscriptions.keys()):
+            self.network_subscriptions[network_id].discard(websocket)
+            if not self.network_subscriptions[network_id]:
+                del self.network_subscriptions[network_id]
 
         self.topology_subscriptions.discard(websocket)
 
