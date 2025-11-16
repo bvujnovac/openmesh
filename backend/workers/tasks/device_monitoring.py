@@ -3,13 +3,14 @@ Celery tasks for device monitoring and auto-offline detection.
 """
 
 from datetime import datetime, timedelta
+
 from celery import Task
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from backend.workers.celery_app import celery_app
 from backend.core.config import settings
 from backend.models.device import Device, DeviceStatus
+from backend.workers.celery_app import celery_app
 
 
 class DatabaseTask(Task):
@@ -86,6 +87,7 @@ def check_offline_devices(self) -> dict:
             # Note: This will be imported here to avoid circular dependencies
             try:
                 import asyncio
+
                 from backend.core.websocket import manager as ws_manager
 
                 # Create an event loop if needed (Celery runs in sync context)
