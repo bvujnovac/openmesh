@@ -2,6 +2,7 @@
 Network management API endpoints.
 """
 
+import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from backend.schemas.network import (
 )
 from backend.services.network_service import NetworkService
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -85,15 +87,25 @@ async def create_network(
     Raises:
         HTTPException: If network with slug already exists
     """
-    service = NetworkService(db)
+    try:
+        logger.info(f"API: Creating network '{network_data.name}' with slug '{network_data.slug}'")
+        service = NetworkService(db)
 
-    # Check if network with slug exists
-    existing = await service.get_network_by_slug(network_data.slug)
-    if existing:
-        raise HTTPException(status_code=409, detail="Network with this slug already exists")
+        # Check if network with slug exists
+        existing = await service.get_network_by_slug(network_data.slug)
+        if existing:
+            logger.warning(f"Network with slug '{network_data.slug}' already exists")
+            raise HTTPException(status_code=409, detail="Network with this slug already exists")
 
-    network = await service.create_network(network_data)
-    return NetworkResponse.model_validate(network)
+        network = await service.create_network(network_data)
+        logger.info(f"API: Network '{network.name}' created successfully (id: {network.id})")
+        return NetworkResponse.model_validate(network)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"API: Failed to create network: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create network: {str(e)}")
 
 
 @router.patch("/{network_id}", response_model=NetworkResponse)

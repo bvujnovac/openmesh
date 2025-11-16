@@ -2,6 +2,7 @@
 Main FastAPI application entry point.
 """
 
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -12,6 +13,13 @@ from fastapi.responses import JSONResponse
 from backend.core.config import settings
 from backend.core.database import init_db, close_db
 from backend.api.v1 import api_router
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG if settings.DEBUG else logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -99,6 +107,9 @@ async def global_exception_handler(request, exc):
     """
     Global exception handler for unhandled exceptions.
     """
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.error(f"Request: {request.method} {request.url}")
+
     if settings.DEBUG:
         # In debug mode, return full error details
         import traceback

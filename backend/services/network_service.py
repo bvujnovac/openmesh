@@ -3,12 +3,15 @@ Network service layer.
 Contains business logic for network management.
 """
 
+import logging
 from typing import Optional, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.network import Network
 from backend.schemas.network import NetworkCreate, NetworkUpdate
+
+logger = logging.getLogger(__name__)
 
 
 class NetworkService:
@@ -43,31 +46,42 @@ class NetworkService:
 
     async def create_network(self, network_data: NetworkCreate) -> Network:
         """Create a new network."""
-        # Calculate infrastructure CIDR from network CIDR
-        # For /16 network, infrastructure is /23 (10.0.0.0/23)
-        network_base = network_data.network_cidr.split("/")[0]
-        base_parts = network_base.split(".")
-        infrastructure_cidr = f"{base_parts[0]}.{base_parts[1]}.0.0/23"
-        client_pool_start = f"{base_parts[0]}.{base_parts[1]}.2.0"
+        try:
+            logger.info(f"Creating network: {network_data.name} (slug: {network_data.slug})")
 
-        network = Network(
-            name=network_data.name,
-            slug=network_data.slug,
-            description=network_data.description,
-            network_cidr=network_data.network_cidr,
-            infrastructure_cidr=infrastructure_cidr,
-            client_pool_start=client_pool_start,
-            mesh_ssid=network_data.mesh_ssid,
-            mesh_password=network_data.mesh_password,
-            client_ssid=network_data.client_ssid,
-            client_password=network_data.client_password,
-        )
+            # Calculate infrastructure CIDR from network CIDR
+            # For /16 network, infrastructure is /23 (10.0.0.0/23)
+            network_base = network_data.network_cidr.split("/")[0]
+            base_parts = network_base.split(".")
+            infrastructure_cidr = f"{base_parts[0]}.{base_parts[1]}.0.0/23"
+            client_pool_start = f"{base_parts[0]}.{base_parts[1]}.2.0"
 
-        self.db.add(network)
-        await self.db.commit()
-        await self.db.refresh(network)
+            logger.debug(f"Calculated infrastructure_cidr: {infrastructure_cidr}, client_pool_start: {client_pool_start}")
 
-        return network
+            network = Network(
+                name=network_data.name,
+                slug=network_data.slug,
+                description=network_data.description,
+                network_cidr=network_data.network_cidr,
+                infrastructure_cidr=infrastructure_cidr,
+                client_pool_start=client_pool_start,
+                mesh_ssid=network_data.mesh_ssid,
+                mesh_password=network_data.mesh_password,
+                client_ssid=network_data.client_ssid,
+                client_password=network_data.client_password,
+            )
+
+            self.db.add(network)
+            await self.db.commit()
+            await self.db.refresh(network)
+
+            logger.info(f"Network created successfully: {network.name} (id: {network.id})")
+            return network
+
+        except Exception as e:
+            logger.error(f"Failed to create network: {e}", exc_info=True)
+            await self.db.rollback()
+            raise
 
     async def update_network(
         self, network_id: int, network_data: NetworkUpdate
