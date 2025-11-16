@@ -58,11 +58,14 @@ def discover_profiles(
     ib_name = f"openwrt-imagebuilder-{version}-{target}-{subtarget}.Linux-x86_64"
     ib_dir = Path(settings.IMAGEBUILDER_PATH) / ib_name
 
-    # Check if ImageBuilder exists
+    # Check if ImageBuilder exists, download if needed
     if not ib_dir.exists():
-        # Would need to download it first
-        # For now, return empty list - actual download happens in build
-        return []
+        try:
+            _download_imagebuilder(target, subtarget, version)
+        except Exception:
+            # If download fails, return empty list
+            # User can still build, ImageBuilder will download during build
+            return []
 
     try:
         # Run: make info
@@ -83,6 +86,66 @@ def discover_profiles(
 
     except (subprocess.SubprocessError, FileNotFoundError, subprocess.TimeoutExpired):
         return []
+
+
+def _download_imagebuilder(target: str, subtarget: str, version: str) -> Path:
+    """
+    Download OpenWrt ImageBuilder if not present.
+
+    Args:
+        target: OpenWrt target (e.g., "ath79")
+        subtarget: OpenWrt subtarget (e.g., "generic")
+        version: OpenWrt version (e.g., "23.05.2")
+
+    Returns:
+        Path to ImageBuilder directory
+
+    Raises:
+        RuntimeError: If download fails
+    """
+    # ImageBuilder naming
+    ib_name = f"openwrt-imagebuilder-{version}-{target}-{subtarget}.Linux-x86_64"
+    ib_dir = Path(settings.IMAGEBUILDER_PATH) / ib_name
+    ib_archive = Path(settings.IMAGEBUILDER_PATH) / f"{ib_name}.tar.xz"
+
+    # Ensure base directory exists
+    Path(settings.IMAGEBUILDER_PATH).mkdir(parents=True, exist_ok=True)
+
+    # Check if already exists
+    if ib_dir.exists():
+        return ib_dir
+
+    # Download URL
+    download_url = (
+        f"https://downloads.openwrt.org/releases/{version}/targets/"
+        f"{target}/{subtarget}/{ib_name}.tar.xz"
+    )
+
+    try:
+        # Download
+        subprocess.run(
+            ["wget", "-O", str(ib_archive), download_url],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        # Extract
+        subprocess.run(
+            ["tar", "-xJf", str(ib_archive), "-C", str(settings.IMAGEBUILDER_PATH)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        # Cleanup archive
+        ib_archive.unlink()
+
+        return ib_dir
+
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Failed to download ImageBuilder: {e.stderr if e.stderr else str(e)}"
+        raise RuntimeError(error_msg)
 
 
 def _parse_imagebuilder_info(output: str) -> List[Dict[str, Any]]:
