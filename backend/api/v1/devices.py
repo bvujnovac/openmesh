@@ -18,6 +18,7 @@ from backend.schemas.device import (
     DeviceStatusUpdate,
 )
 from backend.services.device_service import DeviceService
+from backend.services.monitoring.influxdb_client import get_influx_client
 from backend.models.device import DeviceStatus
 
 router = APIRouter()
@@ -189,6 +190,7 @@ async def device_heartbeat(
     Device heartbeat endpoint.
 
     Called periodically by mesh routers to report status.
+    Updates device status in SQLite and writes metrics to InfluxDB.
 
     Args:
         device_id: Device ID
@@ -203,6 +205,33 @@ async def device_heartbeat(
 
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    # Write metrics to InfluxDB (async, non-blocking)
+    try:
+        influx = get_influx_client()
+
+        # Prepare metrics dict from status update
+        metrics = {}
+        if status_update.uptime_seconds is not None:
+            metrics["uptime_seconds"] = status_update.uptime_seconds
+        if status_update.load_average:
+            # Parse load average (e.g., "0.5, 0.4, 0.3")
+            loads = [float(x.strip()) for x in status_update.load_average.split(",")]
+            if len(loads) >= 3:
+                metrics["load_1min"] = loads[0]
+                metrics["load_5min"] = loads[1]
+                metrics["load_15min"] = loads[2]
+        if status_update.memory_total_mb:
+            metrics["memory_total_mb"] = status_update.memory_total_mb
+
+        # Write to InfluxDB
+        if metrics:
+            influx.write_device_metric(
+                device_id=device.id, device_mac=device.mac_address, metrics=metrics
+            )
+    except Exception as e:
+        # Log error but don't fail the heartbeat
+        print(f"Warning: Failed to write metrics to InfluxDB: {e}")
 
 
 @router.delete("/{device_id}", status_code=204)

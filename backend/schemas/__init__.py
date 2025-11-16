@@ -18,6 +18,13 @@ from backend.schemas.network import (
     NetworkResponse,
     NetworkDetailResponse,
 )
+from backend.schemas.firmware import (
+    FirmwareBuildCreate,
+    FirmwareBuildResponse,
+    FirmwareBuildDetailResponse,
+    FirmwareBuildListResponse,
+    FirmwareBuildTaskResponse,
+)
 
 __all__ = [
     # Device schemas
@@ -34,4 +41,10 @@ __all__ = [
     "NetworkUpdate",
     "NetworkResponse",
     "NetworkDetailResponse",
+    # Firmware schemas
+    "FirmwareBuildCreate",
+    "FirmwareBuildResponse",
+    "FirmwareBuildDetailResponse",
+    "FirmwareBuildListResponse",
+    "FirmwareBuildTaskResponse",
 ]

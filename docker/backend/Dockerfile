@@ -4,12 +4,20 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies
+# Includes tools for OpenWrt ImageBuilder
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     git \
     wget \
     unzip \
+    xz-utils \
+    tar \
+    file \
+    libncurses5-dev \
+    gawk \
+    gettext \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
