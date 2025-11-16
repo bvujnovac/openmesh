@@ -13,6 +13,7 @@ from backend.schemas.network import (
     NetworkUpdate,
     NetworkResponse,
     NetworkDetailResponse,
+    NetworkListResponse,
 )
 from backend.services.network_service import NetworkService
 
@@ -20,13 +21,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("", response_model=List[NetworkResponse])
+@router.get("", response_model=NetworkListResponse)
 async def list_networks(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     active_only: bool = True,
     db: AsyncSession = Depends(get_db),
-) -> List[NetworkResponse]:
+) -> NetworkListResponse:
     """
     List all networks with pagination.
 
@@ -37,11 +38,18 @@ async def list_networks(
         db: Database session
 
     Returns:
-        List[NetworkResponse]: List of networks
+        NetworkListResponse: Paginated list of networks
     """
     service = NetworkService(db)
     networks = await service.list_networks(skip=skip, limit=limit, active_only=active_only)
-    return [NetworkResponse.model_validate(n) for n in networks]
+    total = await service.count_networks(active_only=active_only)
+
+    return NetworkListResponse(
+        total=total,
+        page=(skip // limit) + 1,
+        page_size=limit,
+        networks=[NetworkResponse.model_validate(n) for n in networks],
+    )
 
 
 @router.get("/{network_id}", response_model=NetworkDetailResponse)

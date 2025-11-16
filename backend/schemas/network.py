@@ -70,3 +70,12 @@ class NetworkDetailResponse(NetworkResponse):
     client_encryption: str
     default_openwrt_version: str
     auto_update_enabled: bool
+
+
+class NetworkListResponse(BaseModel):
+    """Paginated network list response."""
+
+    total: int
+    page: int
+    page_size: int
+    networks: list[NetworkResponse]

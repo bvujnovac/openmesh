@@ -5,7 +5,7 @@ Contains business logic for network management.
 
 import logging
 from typing import Optional, List
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.network import Network
@@ -33,6 +33,16 @@ class NetworkService:
 
         result = await self.db.execute(query)
         return list(result.scalars().all())
+
+    async def count_networks(self, active_only: bool = True) -> int:
+        """Count total networks."""
+        query = select(func.count(Network.id))
+
+        if active_only:
+            query = query.where(Network.is_active == True)
+
+        result = await self.db.execute(query)
+        return result.scalar_one()
 
     async def get_network(self, network_id: int) -> Optional[Network]:
         """Get network by ID."""
