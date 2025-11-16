@@ -27,7 +27,7 @@ router = APIRouter()
 @router.get("", response_model=DeviceListResponse)
 async def list_devices(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=10000),
     status: DeviceStatus | None = None,
     search: str | None = None,
     db: AsyncSession = Depends(get_db),

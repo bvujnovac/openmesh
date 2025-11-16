@@ -30,7 +30,10 @@ export default function Networks() {
           <h1>Networks</h1>
           <p className="subtitle">{networks.length} mesh network{networks.length !== 1 ? 's' : ''}</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+        <button className="btn btn-primary" onClick={() => {
+          console.log('Create Network button clicked')
+          setShowCreateModal(true)
+        }}>
           <Plus size={20} />
           Create Network
         </button>
@@ -108,15 +111,24 @@ function CreateNetworkModal({ onClose }) {
   })
 
   const createMutation = useMutation({
-    mutationFn: (data) => networksApi.create(data),
-    onSuccess: () => {
+    mutationFn: (data) => {
+      console.log('Creating network with data:', data)
+      return networksApi.create(data)
+    },
+    onSuccess: (response) => {
+      console.log('Network created successfully:', response)
       queryClient.invalidateQueries({ queryKey: ['networks'] })
       onClose()
+    },
+    onError: (error) => {
+      console.error('Failed to create network:', error)
+      console.error('Error response:', error.response?.data)
     },
   })
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    console.log('Form submitted with data:', formData)
     createMutation.mutate(formData)
   }
 
