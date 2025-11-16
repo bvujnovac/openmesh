@@ -6,6 +6,7 @@ A modern, Python-based platform for managing OpenWrt mesh networks. Inspired by 
 
 ✅ **Zero-Configuration Deployment** - Routers auto-configure via MAC-based IP assignment
 ✅ **Hardware Agnostic** - Works with any OpenWrt-supported device
+✅ **Ubiquiti Device Support** - Pre-configured profiles for 12 Ubiquiti airMAX devices
 ✅ **Scalable** - Supports 508+ routers, 64K+ clients
 ✅ **Real-time Monitoring** - Live topology visualization and metrics
 ✅ **Custom Firmware Building** - Per-device or fleet-wide image generation
@@ -192,6 +193,33 @@ curl -X POST http://localhost:8000/api/v1/networks \
   }'
 ```
 
+### List Supported Devices
+
+```bash
+curl http://localhost:8000/api/v1/firmware/devices/supported
+```
+
+This returns a list of pre-configured device profiles with hardware specifications.
+
+### Build Firmware for Ubiquiti NanoStation
+
+```bash
+curl -X POST http://localhost:8000/api/v1/firmware \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "NanoStation M5 XW Mesh Firmware",
+    "device_key": "nanostation-m5-xw",
+    "openwrt_version": "23.05.2",
+    "include_uci_defaults": true
+  }'
+```
+
+The `device_key` parameter automatically configures:
+- Target: ath79
+- Subtarget: generic
+- Profile: ubnt_nanostation-m-xw
+- Packages: babeld, kmod-ath9k, kmod-ath10k, ath10k-firmware-qca988x-ct, -ppp, -ppp-mod-pppoe
+
 ## Database Schema
 
 ### SQLite Tables
@@ -312,6 +340,48 @@ script = generator.generate()
 - ⏳ Alerting: Device offline, high latency, link degradation
 - ⏳ Automated notifications: Email, Slack webhooks
 
+## Supported Hardware
+
+The platform includes pre-configured device profiles for common mesh networking hardware. When building firmware, you can select a device type to automatically configure the correct target, subtarget, profile, and recommended packages.
+
+### Ubiquiti airMAX Devices
+
+**NanoStation M Series:**
+- **NanoStation M2** - 2.4GHz, 8MB flash, 32MB RAM - Good for short-range mesh links
+- **NanoStation M5** - 5GHz, 8MB flash, 32MB RAM - Recommended for long-range mesh backhaul
+- **NanoStation M2 XW** - 2.4GHz, 8MB flash, 64MB RAM - Better performance with more RAM
+- **NanoStation M5 XW** - 5GHz, 8MB flash, 64MB RAM - Best for mesh backhaul with 64MB RAM
+
+**NanoStation Loco M Series:**
+- **NanoStation Loco M2** - Compact 2.4GHz, 8MB flash, 32MB RAM - Good for client access points
+- **NanoStation Loco M5** - Compact 5GHz, 8MB flash, 32MB RAM - Short-range mesh links
+- **NanoStation Loco M2 XW** - Compact 2.4GHz, 8MB flash, 64MB RAM
+- **NanoStation Loco M5 XW** - Compact 5GHz, 8MB flash, 64MB RAM - Better for mesh with 64MB RAM
+
+**Other Ubiquiti Devices:**
+- **PicoStation M2** - Ultra-compact 2.4GHz indoor model, 8MB flash, 32MB RAM
+- **Bullet M2** - 2.4GHz board with external antenna connector, 8MB flash, 32MB RAM
+- **Bullet M5** - 5GHz board with external antenna connector, 8MB flash, 32MB RAM
+- **UniFi AC Mesh** - Dual-band AC mesh AP, 8MB flash, 128MB RAM - Excellent for mesh
+
+### OpenWrt Target Details
+
+All Ubiquiti devices above use:
+- **Target:** ath79
+- **Subtarget:** generic
+- **Packages:** babeld, kmod-ath9k, kmod-ath10k (XW models), ath10k-firmware-qca988x-ct
+
+### Custom Hardware
+
+For devices not listed above, you can still build firmware by manually specifying:
+- OpenWrt version (e.g., 23.05.2)
+- Target architecture (e.g., ath79, ramips, x86)
+- Subtarget (e.g., generic, nand)
+- Device profile (optional)
+- Custom package list
+
+See the [OpenWrt Table of Hardware](https://openwrt.org/toh/start) to find your device's specifications.
+
 ## Web Dashboard
 
 The platform includes a modern React-based web dashboard for managing the mesh network.
@@ -347,7 +417,9 @@ The platform includes a modern React-based web dashboard for managing the mesh n
 **Firmware Page** (`/firmware`)
 - List of all firmware builds
 - Search and filter by status
-- Create new firmware builds
+- Create new firmware builds with device selector
+- Support for 12 pre-configured Ubiquiti devices
+- Auto-configuration of target/subtarget/profile/packages
 - Download built firmware images
 - Delete old builds
 - View build logs and errors
