@@ -5,8 +5,9 @@ A modern, Python-based platform for managing OpenWrt mesh networks. Inspired by 
 ## Features
 
 ✅ **Zero-Configuration Deployment** - Routers auto-configure via MAC-based IP assignment
-✅ **Hardware Agnostic** - Works with any OpenWrt-supported device
-✅ **Ubiquiti Device Support** - Pre-configured profiles for 12 Ubiquiti airMAX devices
+✅ **Universal Hardware Support** - Works with 1000+ OpenWrt-supported devices
+✅ **Package Sets** - Predefined configurations (mesh-minimal, mesh-full, gateway, etc.)
+✅ **Profile Discovery** - Automatically discovers all available device profiles
 ✅ **Scalable** - Supports 508+ routers, 64K+ clients
 ✅ **Real-time Monitoring** - Live topology visualization and metrics
 ✅ **Custom Firmware Building** - Per-device or fleet-wide image generation
@@ -193,32 +194,46 @@ curl -X POST http://localhost:8000/api/v1/networks \
   }'
 ```
 
-### List Supported Devices
+### List Package Sets
 
 ```bash
-curl http://localhost:8000/api/v1/firmware/devices/supported
+curl http://localhost:8000/api/v1/firmware/package-sets
 ```
 
-This returns a list of pre-configured device profiles with hardware specifications.
+Returns available package sets with descriptions and requirements.
 
-### Build Firmware for Ubiquiti NanoStation
+### List Available Device Profiles
+
+```bash
+# List all devices for ath79/generic
+curl http://localhost:8000/api/v1/firmware/profiles/ath79/generic
+
+# Search for Ubiquiti devices
+curl "http://localhost:8000/api/v1/firmware/profiles/ath79/generic?search=ubiquiti"
+```
+
+### Build Firmware for Any Device
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/firmware \
   -H "Content-Type: application/json" \
   -d '{
     "name": "NanoStation M5 XW Mesh Firmware",
-    "device_key": "nanostation-m5-xw",
+    "target": "ath79",
+    "subtarget": "generic",
+    "profile": "ubnt_nanostation-m-xw",
+    "package_set": "mesh-full",
     "openwrt_version": "23.05.2",
     "include_uci_defaults": true
   }'
 ```
 
-The `device_key` parameter automatically configures:
-- Target: ath79
-- Subtarget: generic
-- Profile: ubnt_nanostation-m-xw
-- Packages: babeld, kmod-ath9k, kmod-ath10k, ath10k-firmware-qca988x-ct, -ppp, -ppp-mod-pppoe
+The `package_set` parameter automatically applies:
+- mesh-minimal: babeld, kmod-ath9k
+- mesh-full: babeld, kmod-ath9k, kmod-ath10k, ath10k-firmware, collectd
+- mesh-gateway: Full mesh + firewall4, sqm-scripts, luci
+- mesh-monitoring: Full mesh + iperf3, tcpdump
+- mesh-client-ap: Full mesh + wpad-mbedtls, sqm-scripts
 
 ## Database Schema
 
@@ -340,45 +355,53 @@ script = generator.generate()
 - ⏳ Alerting: Device offline, high latency, link degradation
 - ⏳ Automated notifications: Email, Slack webhooks
 
-## Supported Hardware
+## Package Sets
 
-The platform includes pre-configured device profiles for common mesh networking hardware. When building firmware, you can select a device type to automatically configure the correct target, subtarget, profile, and recommended packages.
+Instead of maintaining device-specific profiles, OpenMesh uses **package sets** that work with any OpenWrt-supported device. This allows the platform to scale to 1000+ devices automatically.
 
-### Ubiquiti airMAX Devices
+### Available Package Sets
 
-**NanoStation M Series:**
-- **NanoStation M2** - 2.4GHz, 8MB flash, 32MB RAM - Good for short-range mesh links
-- **NanoStation M5** - 5GHz, 8MB flash, 32MB RAM - Recommended for long-range mesh backhaul
-- **NanoStation M2 XW** - 2.4GHz, 8MB flash, 64MB RAM - Better performance with more RAM
-- **NanoStation M5 XW** - 5GHz, 8MB flash, 64MB RAM - Best for mesh backhaul with 64MB RAM
+**mesh-minimal** - For low-resource devices
+- Minimal mesh routing with Babel
+- Requires: 4MB+ flash, 32MB+ RAM
+- Packages: babeld, kmod-ath9k
+- Ideal for: Legacy hardware, 4-8MB flash devices
 
-**NanoStation Loco M Series:**
-- **NanoStation Loco M2** - Compact 2.4GHz, 8MB flash, 32MB RAM - Good for client access points
-- **NanoStation Loco M5** - Compact 5GHz, 8MB flash, 32MB RAM - Short-range mesh links
-- **NanoStation Loco M2 XW** - Compact 2.4GHz, 8MB flash, 64MB RAM
-- **NanoStation Loco M5 XW** - Compact 5GHz, 8MB flash, 64MB RAM - Better for mesh with 64MB RAM
+**mesh-full** - Recommended for most deployments
+- Complete mesh stack with WiFi drivers and monitoring
+- Requires: 8MB+ flash, 64MB+ RAM
+- Packages: babeld, kmod-ath9k, kmod-ath10k, ath10k-firmware, collectd
+- Ideal for: Modern routers, XW series, AC devices
 
-**Other Ubiquiti Devices:**
-- **PicoStation M2** - Ultra-compact 2.4GHz indoor model, 8MB flash, 32MB RAM
-- **Bullet M2** - 2.4GHz board with external antenna connector, 8MB flash, 32MB RAM
-- **Bullet M5** - 5GHz board with external antenna connector, 8MB flash, 32MB RAM
-- **UniFi AC Mesh** - Dual-band AC mesh AP, 8MB flash, 128MB RAM - Excellent for mesh
+**mesh-gateway** - For internet gateway nodes
+- Mesh node with gateway capabilities (NAT, firewall, QoS)
+- Requires: 16MB+ flash, 128MB+ RAM
+- Packages: babeld, WiFi drivers, firewall4, sqm-scripts, luci
+- Ideal for: High-RAM devices, gateway routers
 
-### OpenWrt Target Details
+**mesh-monitoring** - Enhanced monitoring and metrics
+- Full mesh with enhanced monitoring tools
+- Requires: 8MB+ flash, 64MB+ RAM
+- Packages: Full mesh + iperf3, tcpdump, enhanced collectd
+- Ideal for: Monitoring nodes, testing, development
 
-All Ubiquiti devices above use:
-- **Target:** ath79
-- **Subtarget:** generic
-- **Packages:** babeld, kmod-ath9k, kmod-ath10k (XW models), ath10k-firmware-qca988x-ct
+**mesh-client-ap** - Optimized for client access
+- Mesh node with dual SSID and QoS for clients
+- Requires: 8MB+ flash, 64MB+ RAM
+- Packages: babeld, WiFi drivers, wpad-mbedtls, sqm-scripts
+- Ideal for: Client access points, indoor deployments
 
-### Custom Hardware
+### Supported Hardware
 
-For devices not listed above, you can still build firmware by manually specifying:
-- OpenWrt version (e.g., 23.05.2)
-- Target architecture (e.g., ath79, ramips, x86)
-- Subtarget (e.g., generic, nand)
-- Device profile (optional)
-- Custom package list
+OpenMesh works with **any device supported by OpenWrt** (1000+ devices). The platform automatically discovers available profiles for each target/subtarget.
+
+**Common targets:**
+- **ath79/generic** - Atheros AR71xx/AR913x/AR933x (Ubiquiti, TP-Link, etc.)
+- **ramips/mt7621** - MediaTek MT7621 (Xiaomi, GL.iNet, etc.)
+- **ipq40xx/generic** - Qualcomm IPQ40xx
+- **x86/64** - x86 64-bit PCs and virtual machines
+- **bcm27xx/bcm2711** - Raspberry Pi 4
+- ...and many more
 
 See the [OpenWrt Table of Hardware](https://openwrt.org/toh/start) to find your device's specifications.
 
@@ -417,9 +440,11 @@ The platform includes a modern React-based web dashboard for managing the mesh n
 **Firmware Page** (`/firmware`)
 - List of all firmware builds
 - Search and filter by status
-- Create new firmware builds with device selector
-- Support for 12 pre-configured Ubiquiti devices
-- Auto-configuration of target/subtarget/profile/packages
+- Create new firmware builds with:
+  - Target/subtarget selector (10+ common targets)
+  - Profile discovery (1000+ devices)
+  - Package set selector (5 predefined sets)
+  - Search/filter available profiles
 - Download built firmware images
 - Delete old builds
 - View build logs and errors

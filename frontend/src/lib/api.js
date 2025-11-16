@@ -38,7 +38,12 @@ export const firmwareApi = {
       responseType: 'blob',
     })
   },
-  getSupportedDevices: () => api.get('/firmware/devices/supported'),
+  getPackageSets: () => api.get('/firmware/package-sets'),
+  getTargets: () => api.get('/firmware/targets'),
+  getProfiles: (target, subtarget, search) =>
+    api.get(`/firmware/profiles/${target}/${subtarget}`, {
+      params: search ? { search } : {}
+    }),
 }
 
 // Topology API

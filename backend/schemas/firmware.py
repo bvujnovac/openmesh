@@ -22,9 +22,9 @@ class FirmwareBuildBase(BaseModel):
 class FirmwareBuildCreate(FirmwareBuildBase):
     """Schema for creating a new firmware build."""
 
-    device_key: Optional[str] = Field(
+    package_set: Optional[str] = Field(
         None,
-        description="Device profile key (e.g., 'nanostation-m5-xw'). If provided, overrides target/subtarget/profile."
+        description="Package set key (e.g., 'mesh-full', 'mesh-gateway'). Defines packages to include/remove."
     )
     network_id: Optional[int] = None
     base_packages: List[str] = Field(default_factory=list)

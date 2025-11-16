@@ -228,20 +228,39 @@ function CreateBuildModal({ onClose }) {
   const [formData, setFormData] = useState({
     name: '',
     openwrt_version: '23.05.2',
-    device_key: '',
     target: 'ath79',
     subtarget: 'generic',
     profile: '',
+    package_set: 'mesh-full',
     include_uci_defaults: true,
   })
+  const [profileSearch, setProfileSearch] = useState('')
 
-  // Fetch supported devices
-  const { data: devicesData } = useQuery({
-    queryKey: ['supported-devices'],
-    queryFn: () => firmwareApi.getSupportedDevices().then((res) => res.data),
+  // Fetch package sets
+  const { data: packageSetsData } = useQuery({
+    queryKey: ['package-sets'],
+    queryFn: () => firmwareApi.getPackageSets().then((res) => res.data),
   })
 
-  const supportedDevices = devicesData?.devices || []
+  // Fetch targets
+  const { data: targetsData } = useQuery({
+    queryKey: ['targets'],
+    queryFn: () => firmwareApi.getTargets().then((res) => res.data),
+  })
+
+  // Fetch profiles for selected target/subtarget
+  const { data: profilesData } = useQuery({
+    queryKey: ['profiles', formData.target, formData.subtarget, profileSearch],
+    queryFn: () =>
+      firmwareApi
+        .getProfiles(formData.target, formData.subtarget, profileSearch)
+        .then((res) => res.data),
+    enabled: !!(formData.target && formData.subtarget),
+  })
+
+  const packageSets = packageSetsData?.package_sets || []
+  const targets = targetsData?.targets || []
+  const profiles = profilesData?.profiles || []
 
   const createMutation = useMutation({
     mutationFn: (data) => firmwareApi.create(data),
@@ -251,23 +270,13 @@ function CreateBuildModal({ onClose }) {
     },
   })
 
-  const handleDeviceSelect = (deviceKey) => {
-    const device = supportedDevices.find((d) => d.key === deviceKey)
-    if (device) {
-      setFormData({
-        ...formData,
-        device_key: deviceKey,
-        target: device.target,
-        subtarget: device.subtarget,
-        profile: device.profile,
-        name: formData.name || `${device.name} Firmware`,
-      })
-    } else {
-      setFormData({
-        ...formData,
-        device_key: '',
-      })
-    }
+  const handleTargetChange = (target, subtarget) => {
+    setFormData({
+      ...formData,
+      target,
+      subtarget,
+      profile: '',
+    })
   }
 
   const handleSubmit = (e) => {
@@ -291,47 +300,65 @@ function CreateBuildModal({ onClose }) {
           </div>
 
           <div className="form-group">
-            <label>Device Type</label>
+            <label>Target Platform</label>
             <select
-              value={formData.device_key}
-              onChange={(e) => handleDeviceSelect(e.target.value)}
+              value={`${formData.target}/${formData.subtarget}`}
+              onChange={(e) => {
+                const [target, subtarget] = e.target.value.split('/')
+                handleTargetChange(target, subtarget)
+              }}
+              required
             >
-              <option value="">Custom (manual configuration)</option>
-              <optgroup label="Ubiquiti NanoStation">
-                {supportedDevices
-                  .filter((d) => d.key.startsWith('nanostation-') && !d.key.includes('loco'))
-                  .map((device) => (
-                    <option key={device.key} value={device.key}>
-                      {device.name} ({device.flash_size_mb}MB / {device.ram_size_mb}MB RAM)
-                    </option>
-                  ))}
-              </optgroup>
-              <optgroup label="Ubiquiti NanoStation Loco">
-                {supportedDevices
-                  .filter((d) => d.key.includes('loco'))
-                  .map((device) => (
-                    <option key={device.key} value={device.key}>
-                      {device.name} ({device.flash_size_mb}MB / {device.ram_size_mb}MB RAM)
-                    </option>
-                  ))}
-              </optgroup>
-              <optgroup label="Other Ubiquiti">
-                {supportedDevices
-                  .filter(
-                    (d) =>
-                      !d.key.startsWith('nanostation-') &&
-                      !d.key.includes('loco')
-                  )
-                  .map((device) => (
-                    <option key={device.key} value={device.key}>
-                      {device.name} ({device.flash_size_mb}MB / {device.ram_size_mb}MB RAM)
-                    </option>
-                  ))}
-              </optgroup>
+              {targets.map((t) => (
+                <option key={`${t.target}/${t.subtarget}`} value={`${t.target}/${t.subtarget}`}>
+                  {t.target}/{t.subtarget} - {t.description}
+                </option>
+              ))}
             </select>
-            {formData.device_key && (
+          </div>
+
+          <div className="form-group">
+            <label>Device Profile</label>
+            <input
+              type="text"
+              placeholder="Search devices (e.g., ubiquiti, tplink)..."
+              value={profileSearch}
+              onChange={(e) => setProfileSearch(e.target.value)}
+              style={{ marginBottom: '8px' }}
+            />
+            <select
+              value={formData.profile}
+              onChange={(e) => setFormData({ ...formData, profile: e.target.value })}
+              required
+            >
+              <option value="">Select a device...</option>
+              {profiles.map((p) => (
+                <option key={p.profile} value={p.profile}>
+                  {p.title} ({p.profile})
+                </option>
+              ))}
+            </select>
+            <small className="form-hint">
+              {profiles.length} device{profiles.length !== 1 ? 's' : ''} available
+            </small>
+          </div>
+
+          <div className="form-group">
+            <label>Package Set</label>
+            <select
+              value={formData.package_set}
+              onChange={(e) => setFormData({ ...formData, package_set: e.target.value })}
+            >
+              {packageSets.map((ps) => (
+                <option key={ps.key} value={ps.key}>
+                  {ps.name} - {ps.description}
+                </option>
+              ))}
+            </select>
+            {formData.package_set && (
               <small className="form-hint">
-                {supportedDevices.find((d) => d.key === formData.device_key)?.notes}
+                Requires: {packageSets.find((ps) => ps.key === formData.package_set)?.min_flash_mb}MB flash,{' '}
+                {packageSets.find((ps) => ps.key === formData.package_set)?.min_ram_mb}MB RAM
               </small>
             )}
           </div>
@@ -345,40 +372,6 @@ function CreateBuildModal({ onClose }) {
                 setFormData({ ...formData, openwrt_version: e.target.value })
               }
               required
-            />
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Target</label>
-              <input
-                type="text"
-                value={formData.target}
-                onChange={(e) => setFormData({ ...formData, target: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Subtarget</label>
-              <input
-                type="text"
-                value={formData.subtarget}
-                onChange={(e) =>
-                  setFormData({ ...formData, subtarget: e.target.value })
-                }
-                required
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>Profile (optional)</label>
-            <input
-              type="text"
-              value={formData.profile}
-              onChange={(e) => setFormData({ ...formData, profile: e.target.value })}
-              placeholder="e.g. tplink_archer-c7-v5"
             />
           </div>
 

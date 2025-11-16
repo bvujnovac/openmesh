@@ -11,7 +11,6 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 from backend.core.config import settings
-from backend.services.image_builder.ubiquiti_profiles import DeviceProfile
 
 
 class ImageBuilder:
@@ -58,38 +57,6 @@ class ImageBuilder:
 
         # Build log
         self.log: List[str] = []
-
-    @classmethod
-    def from_device_profile(
-        cls, device_profile: DeviceProfile, version: str = "23.05.2"
-    ) -> "ImageBuilder":
-        """
-        Create ImageBuilder from a device profile.
-
-        Args:
-            device_profile: DeviceProfile with hardware specifications
-            version: OpenWrt version (default: 23.05.2)
-
-        Returns:
-            Configured ImageBuilder instance
-        """
-        builder = cls(
-            version=version,
-            target=device_profile.target,
-            subtarget=device_profile.subtarget,
-            profile=device_profile.openwrt_profile,
-        )
-
-        # Add recommended packages
-        for package in device_profile.recommended_packages:
-            if package.startswith("-"):
-                # Remove package
-                builder.remove_package(package[1:])
-            else:
-                # Add package
-                builder.add_package(package)
-
-        return builder
 
     def add_package(self, package: str) -> None:
         """Add a package to the build."""

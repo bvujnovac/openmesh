@@ -22,37 +22,90 @@ from backend.models.network import Network
 from backend.workers.tasks.firmware import build_firmware
 from backend.services.image_builder.builder import get_default_packages
 from backend.services.config_gen.uci_generator import UCIGenerator
-from backend.services.image_builder.ubiquiti_profiles import UBIQUITI_DEVICES, get_device_profile
+from backend.services.image_builder.package_sets import PACKAGE_SETS, get_package_set
+from backend.services.image_builder.profile_discovery import (
+    discover_profiles,
+    search_profiles,
+    get_common_targets,
+)
 from datetime import datetime
 
 router = APIRouter()
 
 
-@router.get("/devices/supported")
-async def list_supported_devices():
+@router.get("/package-sets")
+async def list_package_sets():
     """
-    List all supported hardware devices for firmware builds.
+    List all available package sets for firmware builds.
 
     Returns:
-        List of supported device profiles with hardware specifications
+        List of package sets with descriptions and requirements
     """
     return {
-        "devices": [
+        "package_sets": [
             {
                 "key": key,
-                "name": profile.name,
-                "manufacturer": profile.manufacturer,
-                "model": profile.model,
-                "target": profile.target,
-                "subtarget": profile.subtarget,
-                "profile": profile.openwrt_profile,
-                "flash_size_mb": profile.flash_size_mb,
-                "ram_size_mb": profile.ram_size_mb,
-                "recommended_packages": profile.recommended_packages,
-                "notes": profile.notes,
+                "name": pkg_set.name,
+                "description": pkg_set.description,
+                "packages": pkg_set.packages,
+                "remove_packages": pkg_set.remove_packages,
+                "min_flash_mb": pkg_set.min_flash_mb,
+                "min_ram_mb": pkg_set.min_ram_mb,
+                "recommended_for": pkg_set.recommended_for,
             }
-            for key, profile in UBIQUITI_DEVICES.items()
+            for key, pkg_set in PACKAGE_SETS.items()
         ]
+    }
+
+
+@router.get("/targets")
+async def list_targets():
+    """
+    List common OpenWrt targets and subtargets.
+
+    Returns:
+        List of common targets with descriptions
+    """
+    return {
+        "targets": get_common_targets()
+    }
+
+
+@router.get("/profiles/{target}/{subtarget}")
+async def list_profiles(
+    target: str,
+    subtarget: str,
+    search: str = Query(None, description="Search query for filtering profiles"),
+    version: str = Query("23.05.2", description="OpenWrt version"),
+):
+    """
+    List available device profiles for a target/subtarget.
+
+    This queries the OpenWrt ImageBuilder to discover all supported devices.
+
+    Args:
+        target: OpenWrt target (e.g., "ath79")
+        subtarget: OpenWrt subtarget (e.g., "generic")
+        search: Optional search query to filter profiles
+        version: OpenWrt version (default: "23.05.2")
+
+    Returns:
+        List of available device profiles
+
+    Example:
+        GET /api/v1/firmware/profiles/ath79/generic?search=ubiquiti
+    """
+    if search:
+        profiles = search_profiles(target, subtarget, search, version)
+    else:
+        profiles = discover_profiles(target, subtarget, version)
+
+    return {
+        "target": target,
+        "subtarget": subtarget,
+        "version": version,
+        "count": len(profiles),
+        "profiles": profiles,
     }
 
 
@@ -142,31 +195,20 @@ async def create_firmware_build(
     Raises:
         HTTPException: If network not found
     """
-    # If device_key is provided, get device profile and override target/subtarget/profile
-    if build_data.device_key:
-        device_profile = get_device_profile(build_data.device_key)
-        if not device_profile:
+    # If package_set is provided, apply package configuration
+    if build_data.package_set:
+        package_set = get_package_set(build_data.package_set)
+        if not package_set:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unknown device key: {build_data.device_key}"
+                detail=f"Unknown package set: {build_data.package_set}"
             )
 
-        # Override target/subtarget/profile from device profile
-        build_data.target = device_profile.target
-        build_data.subtarget = device_profile.subtarget
-        build_data.profile = device_profile.openwrt_profile
-
-        # Use recommended packages from profile if no packages specified
+        # Use packages from package set if not specified
         if not build_data.base_packages:
-            build_data.base_packages = [
-                pkg for pkg in device_profile.recommended_packages
-                if not pkg.startswith("-")
-            ]
+            build_data.base_packages = package_set.packages.copy()
         if not build_data.removed_packages:
-            build_data.removed_packages = [
-                pkg[1:] for pkg in device_profile.recommended_packages
-                if pkg.startswith("-")
-            ]
+            build_data.removed_packages = package_set.remove_packages.copy()
 
     # Verify network exists if specified
     if build_data.network_id:
