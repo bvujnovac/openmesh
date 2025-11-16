@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
 import MetricsChart from './MetricsChart'
 import { RefreshCw } from 'lucide-react'
 import { useWebSocket } from '../hooks/useWebSocket'
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1',
-})
+import { metricsApi } from '../lib/api'
 
 const timeRanges = [
   { label: '1 Hour', value: '-1h' },
@@ -49,13 +45,11 @@ export default function DeviceMetrics({ deviceId }) {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['device-metrics', deviceId, timeRange],
     queryFn: () =>
-      api
-        .get(`/metrics/devices/${deviceId}`, {
-          params: {
-            start: timeRange,
-            end: 'now()',
-            metrics: 'cpu_usage_percent,memory_free_mb,load_1min,uptime_seconds,babel_neighbors,babel_routes,babel_avg_rtt_ms',
-          },
+      metricsApi
+        .getDeviceMetrics(deviceId, {
+          start: timeRange,
+          end: 'now()',
+          metrics: 'cpu_usage_percent,memory_free_mb,load_1min,uptime_seconds,babel_neighbors,babel_routes,babel_avg_rtt_ms',
         })
         .then((res) => res.data),
     refetchInterval: 60000, // Refresh every minute (fallback if WebSocket fails)

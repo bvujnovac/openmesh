@@ -55,39 +55,64 @@ async def get_topology(
             }
         )
 
+    # Create links between devices
     # In a real implementation, links would come from:
     # 1. Babel routing table (neighbor relationships)
     # 2. WiFi association data
     # 3. LLDP/CDP neighbor discovery
     #
-    # For now, we'll create logical links based on subnet proximity
-    # This is a placeholder - real mesh links should come from Babel data
+    # For now, create a mesh topology where online devices in the same network
+    # are connected based on their neighbor_count to simulate realistic connectivity
     links = []
-    subnet_groups: Dict[int, List[Device]] = {}
 
-    # Group devices by subnet for proximity-based linking
+    # Group devices by network
+    network_groups: Dict[int, List[Device]] = {}
     for device in devices:
-        if device.subnet_id not in subnet_groups:
-            subnet_groups[device.subnet_id] = []
-        subnet_groups[device.subnet_id].append(device)
+        if device.network_id and device.status == "online":
+            if device.network_id not in network_groups:
+                network_groups[device.network_id] = []
+            network_groups[device.network_id].append(device)
 
-    # Create links between devices (placeholder logic)
-    # TODO: Replace with actual Babel routing data
-    for i, device1 in enumerate(devices):
-        for device2 in devices[i + 1 :]:
-            # Create link if devices are "close" (same or adjacent subnet)
-            if (
-                device1.network_id == device2.network_id
-                and abs(device1.subnet_id - device2.subnet_id) <= 1
-            ):
-                links.append(
-                    {
-                        "source": str(device1.id),
-                        "target": str(device2.id),
+    # Create mesh links for each network
+    for network_id, network_devices in network_groups.items():
+        if len(network_devices) < 2:
+            continue
+
+        # Sort devices by ID for consistent link generation
+        sorted_devices = sorted(network_devices, key=lambda d: d.id)
+
+        # Create links based on each device's neighbor_count
+        for i, device in enumerate(sorted_devices):
+            # Get the number of neighbors this device should have (from its neighbor_count)
+            # Default to 2 if not set
+            target_neighbors = min(device.neighbor_count or 2, len(sorted_devices) - 1)
+
+            # Connect to next N devices in a ring pattern
+            connected = 0
+            for j in range(1, len(sorted_devices)):
+                if connected >= target_neighbors:
+                    break
+
+                target_idx = (i + j) % len(sorted_devices)
+                target_device = sorted_devices[target_idx]
+
+                # Avoid duplicate links (only create if source.id < target.id)
+                if device.id < target_device.id:
+                    # Determine link quality based on both devices' status and neighbor count
+                    quality = "good"
+                    if device.neighbor_count >= 3 and target_device.neighbor_count >= 3:
+                        quality = "excellent"
+                    elif device.neighbor_count <= 1 or target_device.neighbor_count <= 1:
+                        quality = "poor"
+
+                    links.append({
+                        "source": str(device.id),
+                        "target": str(target_device.id),
                         "type": "mesh",
-                        "quality": "good",  # TODO: Get from metrics
-                    }
-                )
+                        "quality": quality,
+                    })
+
+                connected += 1
 
     return {
         "nodes": nodes,

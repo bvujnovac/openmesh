@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { GitBranch, RefreshCw } from 'lucide-react'
-import axios from 'axios'
+import { topologyApi } from '../lib/api'
 import NetworkTopology from '../components/NetworkTopology'
 import { useWebSocket } from '../hooks/useWebSocket'
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1',
-})
 
 export default function Topology() {
   const [networkFilter, setNetworkFilter] = useState(null)
@@ -44,10 +40,7 @@ export default function Topology() {
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['topology', networkFilter],
-    queryFn: () => {
-      const params = networkFilter ? { network_id: networkFilter } : {}
-      return api.get('/topology', { params }).then((res) => res.data)
-    },
+    queryFn: () => topologyApi.get().then((res) => res.data),
     refetchInterval: 30000, // Refresh every 30 seconds (fallback if WebSocket fails)
   })
 

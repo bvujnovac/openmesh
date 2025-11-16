@@ -5,7 +5,7 @@ Stores information about registered mesh network devices.
 
 from datetime import datetime
 from enum import Enum as PyEnum
-from sqlalchemy import String, Integer, Boolean, DateTime, Enum, Text, JSON
+from sqlalchemy import String, Integer, Boolean, DateTime, Enum, Text, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional, Any
 
@@ -41,6 +41,9 @@ class Device(Base):
     hostname: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Network assignment
+    network_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("networks.id", ondelete="SET NULL"), nullable=True, index=True
+    )  # Network this device belongs to
     ip_address: Mapped[str] = mapped_column(
         String(15), unique=True, index=True, nullable=False
     )  # Infrastructure IP (10.0.0.x or 10.0.1.x)
@@ -51,6 +54,9 @@ class Device(Base):
     subnet_id: Mapped[int] = mapped_column(
         Integer, nullable=False
     )  # Subnet number (2-255 for client pools)
+
+    # Relationships
+    network: Mapped[Optional["Network"]] = relationship("Network", back_populates="devices")
 
     # Hardware information
     hardware_model: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

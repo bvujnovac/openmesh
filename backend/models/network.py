@@ -5,8 +5,8 @@ Supports multiple independent mesh networks.
 
 from datetime import datetime
 from sqlalchemy import String, Integer, Boolean, DateTime, Text, JSON
-from sqlalchemy.orm import Mapped, mapped_column
-from typing import Optional, Any
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import Optional, Any, List
 
 from backend.core.database import Base
 
@@ -104,6 +104,9 @@ class Network(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
+
+    # Relationships
+    devices: Mapped[List["Device"]] = relationship("Device", back_populates="network")
 
     def __repr__(self) -> str:
         return f"<Network {self.name} ({self.network_cidr}) - {self.device_count} devices>"

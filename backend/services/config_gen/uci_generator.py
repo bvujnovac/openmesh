@@ -26,6 +26,9 @@ class UCIGenerator:
         mesh_password: str = "",
         clients_per_router: int = 126,
         babel_port: int = 33123,
+        client_ssid: Optional[str] = None,
+        client_password: Optional[str] = None,
+        client_encryption: str = "none",
     ):
         self.router_ip = router_ip
         self.dhcp_pool_start = dhcp_pool_start
@@ -36,6 +39,9 @@ class UCIGenerator:
         self.mesh_password = mesh_password
         self.clients_per_router = clients_per_router
         self.babel_port = babel_port
+        self.client_ssid = client_ssid
+        self.client_password = client_password
+        self.client_encryption = client_encryption
 
         # Calculate netmask
         network = ipaddress.IPv4Network(network_cidr)
@@ -155,7 +161,38 @@ if [ -n "$RADIO" ]; then
 else
     echo "OpenMesh: WARNING - No WiFi radio found, skipping mesh WiFi setup"
 fi
+"""
 
+        # Add client AP interface if client_ssid is provided
+        if self.client_ssid:
+            script += f"""
+#
+# Client Access Point Interface
+#
+echo "OpenMesh: Configuring client AP..."
+
+if [ -n "$RADIO" ]; then
+    # Create client AP interface on same radio (virtual interface)
+    uci set wireless.client_ap=wifi-iface
+    uci set wireless.client_ap.device="$RADIO"
+    uci set wireless.client_ap.mode='ap'
+    uci set wireless.client_ap.ssid='{self.client_ssid}'
+    uci set wireless.client_ap.network='lan'
+    uci set wireless.client_ap.encryption='{self.client_encryption}'
+"""
+
+            # Add password if encryption is enabled
+            if self.client_encryption != 'none' and self.client_password:
+                script += f"    uci set wireless.client_ap.key='{self.client_password}'\n"
+
+            script += """
+    echo "OpenMesh: Client AP configured on radio $RADIO"
+else
+    echo "OpenMesh: WARNING - No WiFi radio found, skipping client AP setup"
+fi
+"""
+
+        script += """
 #
 # 5. Configure Firewall
 #

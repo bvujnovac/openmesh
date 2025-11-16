@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional, Tuple, List
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from backend.models.device import Device, DeviceStatus
 from backend.models.network import Network
@@ -62,8 +63,8 @@ class DeviceService:
         total_result = await self.db.execute(count_query)
         total = total_result.scalar_one()
 
-        # Apply pagination
-        query = query.offset(skip).limit(limit).order_by(Device.created_at.desc())
+        # Apply pagination and eager load network relationship
+        query = query.options(selectinload(Device.network)).offset(skip).limit(limit).order_by(Device.created_at.desc())
 
         # Execute query
         result = await self.db.execute(query)
@@ -73,7 +74,9 @@ class DeviceService:
 
     async def get_device(self, device_id: int) -> Optional[Device]:
         """Get device by ID."""
-        result = await self.db.execute(select(Device).where(Device.id == device_id))
+        result = await self.db.execute(
+            select(Device).options(selectinload(Device.network)).where(Device.id == device_id)
+        )
         return result.scalar_one_or_none()
 
     async def get_device_by_mac(self, mac_address: str) -> Optional[Device]:
@@ -194,6 +197,10 @@ class DeviceService:
             mesh_ssid=network.mesh_ssid,
             mesh_password=network.mesh_password or "",
             clients_per_router=network.clients_per_router,
+            # Client AP parameters (optional)
+            client_ssid=network.client_ssid,
+            client_password=network.client_password,
+            client_encryption=network.client_encryption or "none",
         )
 
         config_script = generator.generate()

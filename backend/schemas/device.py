@@ -9,6 +9,16 @@ from pydantic import BaseModel, Field, ConfigDict
 from backend.models.device import DeviceStatus
 
 
+# Nested schemas for related objects
+class NetworkInfo(BaseModel):
+    """Minimal network information for device response."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    slug: str
+
+
 # Base schemas
 class DeviceBase(BaseModel):
     """Base device schema with common fields."""
@@ -43,6 +53,7 @@ class DeviceUpdate(BaseModel):
 
     hostname: Optional[str] = Field(None, min_length=1, max_length=255)
     hardware_model: Optional[str] = None
+    network_id: Optional[int] = None
     location_name: Optional[str] = None
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
@@ -76,6 +87,8 @@ class DeviceResponse(DeviceBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    network_id: Optional[int] = None
+    network: Optional[NetworkInfo] = None  # Nested network information
     ip_address: str
     dhcp_pool_start: str
     dhcp_pool_end: str

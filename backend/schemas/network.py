@@ -4,7 +4,7 @@ Pydantic schemas for network API endpoints.
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class NetworkBase(BaseModel):
@@ -23,6 +23,23 @@ class NetworkCreate(NetworkBase):
     mesh_password: Optional[str] = Field(None, min_length=8)
     client_ssid: Optional[str] = Field(None, max_length=32)
     client_password: Optional[str] = Field(None, min_length=8)
+    client_encryption: Optional[str] = Field(default="none")
+
+    @field_validator('client_password')
+    @classmethod
+    def validate_client_password(cls, v, info):
+        """Validate client_password is provided when encryption is enabled."""
+        # Get client_encryption from the data being validated
+        client_encryption = info.data.get('client_encryption', 'none')
+
+        # If encryption is enabled (not 'none'), password is required
+        if client_encryption and client_encryption != 'none':
+            if not v:
+                raise ValueError('client_password is required when client_encryption is not "none"')
+            if len(v) < 8:
+                raise ValueError('client_password must be at least 8 characters')
+
+        return v
 
 
 class NetworkUpdate(BaseModel):
@@ -33,8 +50,25 @@ class NetworkUpdate(BaseModel):
     mesh_password: Optional[str] = None
     client_ssid: Optional[str] = None
     client_password: Optional[str] = None
+    client_encryption: Optional[str] = None
     metrics_interval: Optional[int] = Field(None, ge=10, le=300)
     auto_update_enabled: Optional[bool] = None
+
+    @field_validator('client_password')
+    @classmethod
+    def validate_client_password(cls, v, info):
+        """Validate client_password is provided when encryption is enabled."""
+        # Get client_encryption from the data being validated
+        client_encryption = info.data.get('client_encryption')
+
+        # If encryption is enabled (not 'none'), password is required
+        if client_encryption and client_encryption != 'none':
+            if not v:
+                raise ValueError('client_password is required when client_encryption is not "none"')
+            if v and len(v) < 8:
+                raise ValueError('client_password must be at least 8 characters')
+
+        return v
 
 
 class NetworkResponse(NetworkBase):
