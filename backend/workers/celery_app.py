@@ -13,7 +13,6 @@ celery_app = Celery(
     backend=settings.CELERY_RESULT_BACKEND,
     include=[
         "backend.workers.tasks.firmware",
-        "backend.workers.tasks.metrics",
     ],
 )
 
@@ -35,7 +34,6 @@ celery_app.conf.update(
 # Task routes (can be expanded later)
 celery_app.conf.task_routes = {
     "backend.workers.tasks.firmware.*": {"queue": "firmware"},
-    "backend.workers.tasks.metrics.*": {"queue": "metrics"},
 }
 
 if __name__ == "__main__":
