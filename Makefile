@@ -1,4 +1,4 @@
-.PHONY: help dev stop build clean logs shell db-migrate db-upgrade test lint format
+.PHONY: help dev stop build clean logs logs-backend logs-celery logs-frontend shell db-migrate db-upgrade test lint format
 
 # Auto-detect container compose command (supports Podman and Docker)
 # Priority: podman compose > podman-compose > docker compose > docker-compose
@@ -23,7 +23,10 @@ help:
 	@echo "  make stop       - Stop all containers"
 	@echo "  make build      - Build Docker images"
 	@echo "  make clean      - Remove containers and volumes"
-	@echo "  make logs       - Show container logs"
+	@echo "  make logs       - Show all container logs (with timestamps)"
+	@echo "  make logs-backend  - Show backend logs only"
+	@echo "  make logs-celery   - Show celery worker logs only"
+	@echo "  make logs-frontend - Show frontend logs only"
 	@echo "  make shell      - Open shell in backend container"
 	@echo "  make db-migrate - Create new database migration"
 	@echo "  make db-upgrade - Apply database migrations"
@@ -59,7 +62,20 @@ clean:
 	@echo "Cleaned up!"
 
 logs:
-	$(DOCKER_COMPOSE) logs -f
+	@echo "Showing logs from all containers (Ctrl+C to stop)..."
+	$(DOCKER_COMPOSE) logs -f --tail=100 --timestamps
+
+logs-backend:
+	@echo "Showing backend logs only (Ctrl+C to stop)..."
+	$(DOCKER_COMPOSE) logs -f --tail=200 --timestamps backend
+
+logs-celery:
+	@echo "Showing Celery worker logs only (Ctrl+C to stop)..."
+	$(DOCKER_COMPOSE) logs -f --tail=200 --timestamps celery-worker
+
+logs-frontend:
+	@echo "Showing frontend logs only (Ctrl+C to stop)..."
+	$(DOCKER_COMPOSE) logs -f --tail=200 --timestamps frontend
 
 shell:
 	$(DOCKER_COMPOSE) exec backend /bin/bash

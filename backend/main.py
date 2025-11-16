@@ -65,6 +65,21 @@ app.add_middleware(
 )
 
 
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request, call_next):
+    """Log all HTTP requests and responses."""
+    logger.info(f"→ {request.method} {request.url.path}")
+
+    try:
+        response = await call_next(request)
+        logger.info(f"← {request.method} {request.url.path} - {response.status_code}")
+        return response
+    except Exception as e:
+        logger.error(f"✗ {request.method} {request.url.path} - Error: {e}")
+        raise
+
+
 # Health check endpoint
 @app.get("/health", tags=["health"])
 async def health_check() -> dict[str, str]:
