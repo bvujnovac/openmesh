@@ -36,8 +36,9 @@ A modern, Python-based platform for managing OpenWrt mesh networks. Inspired by 
 - **Vite** - Fast build tool and dev server
 - **TanStack Query** - Server state management
 - **React Router** - Client-side routing
-- **Chart.js** - Metrics visualization
-- **D3.js** - Network topology (prepared)
+- **Chart.js** - Interactive time-series metrics visualization
+- **D3.js** - Force-directed network topology graphs
+- **WebSocket** - Real-time updates for metrics and topology
 
 **Infrastructure:**
 - **Docker** - Containerization
@@ -60,7 +61,12 @@ openmesh/
 ├── frontend/            # React web dashboard
 │   ├── src/
 │   │   ├── components/  # Reusable UI components
+│   │   │   ├── NetworkTopology.jsx   # D3.js topology visualization
+│   │   │   ├── MetricsChart.jsx      # Chart.js line chart
+│   │   │   └── DeviceMetrics.jsx     # Device metrics dashboard
 │   │   ├── pages/       # Page components (Dashboard, Devices, etc.)
+│   │   ├── hooks/       # Custom React hooks
+│   │   │   └── useWebSocket.js       # WebSocket connection hook
 │   │   └── lib/         # API client and utilities
 │   └── vite.config.js   # Vite build configuration
 ├── node-scripts/        # Router-side scripts
@@ -69,6 +75,11 @@ openmesh/
 ├── imagebuilder/        # OpenWrt ImageBuilder storage
 ├── firmware/            # Built firmware images
 ├── docker/              # Docker configurations
+├── tests/               # Test suite
+│   ├── test_websocket.py      # WebSocket tests
+│   ├── test_topology_api.py   # Topology API tests
+│   ├── test_metrics_api.py    # Metrics API tests
+│   └── README.md              # Testing documentation
 └── docs/                # Documentation
 ```
 
@@ -151,7 +162,135 @@ make lint        # Run linters
 make format      # Format code
 ```
 
-## API Usage
+## WebSocket Real-time API
+
+The platform provides WebSocket endpoints for real-time updates.
+
+### WebSocket Connection
+
+Connect to the WebSocket endpoint:
+
+```javascript
+const ws = new WebSocket('ws://localhost:8000/api/v1/ws')
+
+ws.onopen = () => {
+  console.log('Connected to OpenMesh WebSocket')
+}
+
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data)
+  console.log('Received:', message)
+}
+```
+
+### Subscribe to Updates
+
+**Device Updates:**
+```javascript
+// Subscribe to device metrics
+ws.send(JSON.stringify({
+  action: 'subscribe',
+  type: 'device',
+  id: 123
+}))
+
+// Receive real-time metrics
+{
+  "type": "device_metrics",
+  "device_id": 123,
+  "data": {
+    "cpu_usage_percent": 25.5,
+    "memory_free_mb": 512,
+    "load_1min": 0.45
+  }
+}
+
+// Receive device status changes
+{
+  "type": "device_update",
+  "device_id": 123,
+  "data": {
+    "status": "online",
+    "last_seen": "2024-01-15T12:00:00Z"
+  }
+}
+```
+
+**Topology Updates:**
+```javascript
+// Subscribe to topology changes
+ws.send(JSON.stringify({
+  action: 'subscribe',
+  type: 'topology'
+}))
+
+// Receive topology updates when devices connect/disconnect
+{
+  "type": "topology_update",
+  "data": {
+    "nodes": [...],
+    "links": [...]
+  }
+}
+```
+
+**Network Updates:**
+```javascript
+// Subscribe to network changes
+ws.send(JSON.stringify({
+  action: 'subscribe',
+  type: 'network',
+  id: 1
+}))
+```
+
+**Keep-alive Ping:**
+```javascript
+// Send ping every 30 seconds
+setInterval(() => {
+  ws.send(JSON.stringify({ action: 'ping' }))
+}, 30000)
+
+// Receive pong response
+{
+  "type": "pong"
+}
+```
+
+**Unsubscribe:**
+```javascript
+ws.send(JSON.stringify({
+  action: 'unsubscribe',
+  type: 'device',
+  id: 123
+}))
+```
+
+### React Integration
+
+Use the provided `useWebSocket` hook:
+
+```javascript
+import { useWebSocket } from './hooks/useWebSocket'
+
+function MyComponent() {
+  const { isConnected, subscribe, sendMessage } = useWebSocket('/api/v1/ws', {
+    onMessage: (message) => {
+      console.log('Received:', message)
+    }
+  })
+
+  useEffect(() => {
+    if (isConnected) {
+      subscribe('device', 123)
+    }
+  }, [isConnected])
+
+  return <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
+}
+```
+
+## REST API Usage
 
 ### Register a Device
 
@@ -348,8 +487,11 @@ script = generator.generate()
 - ✅ System metrics: CPU, memory (total/free), load average, uptime
 - ✅ Babel metrics: Neighbor count, route count, installed routes, xroutes, avg RTT
 - ✅ Device status: Last seen, online/offline tracking
+- ✅ Real-time updates: WebSocket-based live metric streaming
+- ✅ Interactive visualization: Chart.js time-series graphs, D3.js topology
+- ✅ Time-series queries: 1h, 6h, 24h, 7d, 30d historical data
 
-**Planned (Phase 4):**
+**Planned (Phase 4+):**
 - ⏳ Per-link metrics: Signal strength, packet loss, throughput
 - ⏳ Client metrics: Connected clients, DHCP leases
 - ⏳ Alerting: Device offline, high latency, link degradation
@@ -450,12 +592,23 @@ The platform includes a modern React-based web dashboard for managing the mesh n
 - View build logs and errors
 
 **Topology Page** (`/topology`)
-- Prepared for D3.js network visualization
-- Will show real-time mesh connections (Phase 4)
+- Interactive D3.js force-directed network graph
+- Real-time topology updates via WebSocket
+- Color-coded nodes by device status (online/offline/pending/failed)
+- Interactive features: drag nodes, zoom, click to select
+- Device details panel with quick navigation
+- Link quality visualization
+- Topology summary statistics
 
 **Metrics Page** (`/metrics`)
-- Prepared for Chart.js integration
-- Will show device health charts (Phase 4)
+- Device selector dropdown (online devices)
+- 7 interactive Chart.js time-series graphs:
+  - CPU Usage, Free Memory, Load Average, Uptime
+  - Babel Neighbors, Routes, Average RTT
+- Time range selector (1h, 6h, 24h, 7d, 30d)
+- Real-time metric updates via WebSocket
+- Auto-refresh with manual refresh option
+- Live connection indicator
 
 ### Router Integration Scripts
 
@@ -483,10 +636,12 @@ backend/
 │   ├── firmware.py      # Firmware build management
 │   ├── topology.py      # Network topology data
 │   ├── metrics.py       # Time-series metrics queries
+│   ├── websocket.py     # WebSocket real-time updates
 │   └── __init__.py      # Router configuration
 ├── core/                # Core components
 │   ├── config.py        # Settings management
-│   └── database.py      # Async database configuration
+│   ├── database.py      # Async database configuration
+│   └── websocket.py     # WebSocket connection manager
 ├── models/              # SQLAlchemy database models
 │   ├── device.py        # Device model
 │   ├── network.py       # Network model
@@ -581,10 +736,34 @@ docker-compose exec backend pytest --cov=backend --cov-report=html
 - [x] Real-time metrics storage (InfluxDB)
 - [x] Router auto-registration workflow
 
-### 🔄 Phase 4: Advanced Features - NEXT
-- [ ] D3.js network topology visualization
-- [ ] Chart.js metrics dashboards
-- [ ] WebSocket for real-time updates
+### ✅ Phase 4A: Visualization - COMPLETED
+- [x] D3.js force-directed network topology visualization
+  - Interactive drag, zoom, and click features
+  - Color-coded nodes by device status
+  - Tooltips and selected node details panel
+  - Double-click navigation to device details
+- [x] Chart.js metrics dashboards
+  - Reusable time-series chart component
+  - 7 metric types: CPU, Memory, Load, Uptime, Babel stats
+  - Time range selector (1h, 6h, 24h, 7d, 30d)
+  - Auto-refresh every 60 seconds
+
+### ✅ Phase 4B: Real-time Updates - COMPLETED
+- [x] WebSocket backend support
+  - Connection manager with subscription-based updates
+  - Broadcast methods for device, network, topology updates
+  - Integrated with device heartbeat endpoint
+- [x] WebSocket frontend client
+  - Custom React hook (useWebSocket)
+  - Automatic reconnection with exponential backoff
+  - Ping/pong keep-alive mechanism
+  - Real-time topology and metrics updates
+- [x] Tests for visualization and WebSocket features
+  - Backend WebSocket tests (connection, subscriptions, broadcasts)
+  - Topology API tests (data structure, integrity)
+  - Metrics API tests (time ranges, field validation)
+
+### 🔄 Phase 4C: Advanced Features - NEXT
 - [ ] Alerting system (email, Slack notifications)
 - [ ] Alert rule engine
 - [ ] Multi-network isolation
@@ -631,6 +810,6 @@ MIT License - see LICENSE file for details
 
 ---
 
-**Status:** Phase 3 Complete - Full-Stack Platform Ready for Production Testing
+**Status:** Phase 4A & 4B Complete - Real-time Visualization Platform with WebSocket Support
 
 Built with ❤️ for the mesh networking community
