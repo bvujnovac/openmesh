@@ -221,8 +221,22 @@ async def device_heartbeat(
                 metrics["load_1min"] = loads[0]
                 metrics["load_5min"] = loads[1]
                 metrics["load_15min"] = loads[2]
-        if status_update.memory_total_mb:
+        if status_update.memory_total_mb is not None:
             metrics["memory_total_mb"] = status_update.memory_total_mb
+        if status_update.memory_free_mb is not None:
+            metrics["memory_free_mb"] = status_update.memory_free_mb
+        if status_update.cpu_usage_percent is not None:
+            metrics["cpu_usage_percent"] = status_update.cpu_usage_percent
+        if status_update.neighbor_count is not None:
+            metrics["neighbor_count"] = status_update.neighbor_count
+        if status_update.route_count is not None:
+            metrics["route_count"] = status_update.route_count
+        if status_update.installed_route_count is not None:
+            metrics["installed_route_count"] = status_update.installed_route_count
+        if status_update.xroute_count is not None:
+            metrics["xroute_count"] = status_update.xroute_count
+        if status_update.avg_rtt_ms is not None:
+            metrics["avg_rtt_ms"] = status_update.avg_rtt_ms
 
         # Write to InfluxDB
         if metrics:

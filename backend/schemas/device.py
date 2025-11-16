@@ -59,8 +59,13 @@ class DeviceStatusUpdate(BaseModel):
     uptime_seconds: Optional[int] = Field(None, ge=0)
     load_average: Optional[str] = None
     memory_total_mb: Optional[int] = None
+    memory_free_mb: Optional[int] = Field(None, ge=0)
+    cpu_usage_percent: Optional[float] = Field(None, ge=0, le=100)
     neighbor_count: Optional[int] = Field(None, ge=0)
     route_count: Optional[int] = Field(None, ge=0)
+    installed_route_count: Optional[int] = Field(None, ge=0)
+    xroute_count: Optional[int] = Field(None, ge=0)
+    avg_rtt_ms: Optional[float] = Field(None, ge=0)
     wifi_channels: Optional[str] = None
 
 

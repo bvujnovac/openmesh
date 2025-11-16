@@ -27,6 +27,7 @@ class InfluxDBMetricsClient:
         self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
         self.query_api = self.client.query_api()
         self.bucket = settings.INFLUXDB_BUCKET
+        self.org = settings.INFLUXDB_ORG
 
     def write_device_metric(
         self,
