@@ -219,33 +219,14 @@ async def create_firmware_build(
         if not network:
             raise HTTPException(status_code=404, detail="Network not found")
     else:
-        # Get or create default network
+        # Get default network
         result = await db.execute(select(Network).where(Network.is_active == True).limit(1))
         network = result.scalar_one_or_none()
         if not network:
-            # Create default network on first use
-            network = Network(
-                name="Default Mesh Network",
-                slug="default",
-                network_cidr="10.0.0.0/16",
-                infrastructure_cidr="10.0.0.0/23",
-                client_pool_start="10.0.2.0",
-                max_routers=508,
-                clients_per_router=126,
-                routing_protocol="babel",
-                mesh_ssid="OpenMesh",
-                mesh_encryption="sae",
-                mesh_password="openmesh123",
-                mesh_frequency="5ghz",
-                client_ssid="OpenMesh-Client",
-                client_encryption="psk2",
-                client_password="openmesh123",
-                description="Auto-created default network",
-                is_active=True,
+            raise HTTPException(
+                status_code=400,
+                detail="No network found. Please create a network first via POST /api/v1/networks"
             )
-            db.add(network)
-            await db.commit()
-            await db.refresh(network)
 
     # Generate build number
     timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
