@@ -17,18 +17,26 @@ class Base(DeclarativeBase):
     pass
 
 
-# Create async engine
-# SQLite doesn't use connection pooling, so we configure accordingly
-if settings.is_sqlite:
+# Create async engine only if DATABASE_URL is async
+# This prevents Celery worker crashes when using sync DATABASE_URL
+db_url = str(settings.DATABASE_URL)
+is_async_db = '+aiosqlite' in db_url or '+asyncpg' in db_url
+
+if not is_async_db:
+    # For sync DATABASE_URL (used by Celery worker), skip async engine creation
+    # The Celery worker creates its own sync engine
+    engine = None
+    AsyncSessionLocal = None
+elif settings.is_sqlite:
     engine = create_async_engine(
-        str(settings.DATABASE_URL),
+        db_url,
         echo=settings.DEBUG,
         connect_args={"check_same_thread": False},  # Allow multi-threading for SQLite
     )
 else:
     # PostgreSQL configuration (if using optional postgres support)
     engine = create_async_engine(
-        str(settings.DATABASE_URL),
+        db_url,
         echo=settings.DEBUG,
         pool_size=settings.DATABASE_POOL_SIZE,
         max_overflow=settings.DATABASE_MAX_OVERFLOW,
@@ -36,14 +44,17 @@ else:
         poolclass=NullPool if settings.ENVIRONMENT == "test" else None,
     )
 
-# Create async session factory
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
+# Create async session factory only if engine was created
+if engine is not None:
+    AsyncSessionLocal = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
+else:
+    AsyncSessionLocal = None
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
