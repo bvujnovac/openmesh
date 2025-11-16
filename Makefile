@@ -1,5 +1,8 @@
 .PHONY: help dev stop build clean logs shell db-migrate db-upgrade test lint format
 
+# Auto-detect docker-compose command (V2 uses 'docker compose', V1 uses 'docker-compose')
+DOCKER_COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
+
 help:
 	@echo "OpenMesh Platform - Development Commands"
 	@echo ""
@@ -18,7 +21,8 @@ help:
 
 dev:
 	@echo "Starting development environment..."
-	docker-compose up -d
+	@echo "Using: $(DOCKER_COMPOSE)"
+	$(DOCKER_COMPOSE) up -d
 	@echo ""
 	@echo "Services started:"
 	@echo "  - Frontend UI: http://localhost:3000"
@@ -31,37 +35,37 @@ dev:
 
 stop:
 	@echo "Stopping all containers..."
-	docker-compose stop
+	$(DOCKER_COMPOSE) stop
 
 build:
 	@echo "Building Docker images..."
-	docker-compose build
+	$(DOCKER_COMPOSE) build
 
 clean:
 	@echo "Removing containers and volumes..."
-	docker-compose down -v
+	$(DOCKER_COMPOSE) down -v
 	@echo "Cleaned up!"
 
 logs:
-	docker-compose logs -f
+	$(DOCKER_COMPOSE) logs -f
 
 shell:
-	docker-compose exec backend /bin/bash
+	$(DOCKER_COMPOSE) exec backend /bin/bash
 
 db-migrate:
 	@read -p "Enter migration message: " message; \
-	docker-compose exec backend alembic revision --autogenerate -m "$$message"
+	$(DOCKER_COMPOSE) exec backend alembic revision --autogenerate -m "$$message"
 
 db-upgrade:
-	docker-compose exec backend alembic upgrade head
+	$(DOCKER_COMPOSE) exec backend alembic upgrade head
 
 test:
-	docker-compose exec backend pytest
+	$(DOCKER_COMPOSE) exec backend pytest
 
 lint:
-	docker-compose exec backend ruff check backend/
-	docker-compose exec backend mypy backend/
+	$(DOCKER_COMPOSE) exec backend ruff check backend/
+	$(DOCKER_COMPOSE) exec backend mypy backend/
 
 format:
-	docker-compose exec backend black backend/
-	docker-compose exec backend ruff check --fix backend/
+	$(DOCKER_COMPOSE) exec backend black backend/
+	$(DOCKER_COMPOSE) exec backend ruff check --fix backend/
