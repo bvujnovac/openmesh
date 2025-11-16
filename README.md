@@ -29,10 +29,13 @@ A modern, Python-based platform for managing OpenWrt mesh networks. Inspired by 
 - **InfluxDB** - Time-series database for metrics (optimized for monitoring data)
 - **Optional PostgreSQL** - Can be used instead of SQLite for larger deployments
 
-**Frontend:** (Coming in Phase 4)
-- **React** - UI framework
-- **D3.js/vis.js** - Network topology visualization
-- **WebSockets** - Real-time updates
+**Frontend:**
+- **React 18** - Modern UI framework with hooks
+- **Vite** - Fast build tool and dev server
+- **TanStack Query** - Server state management
+- **React Router** - Client-side routing
+- **Chart.js** - Metrics visualization
+- **D3.js** - Network topology (prepared)
 
 **Infrastructure:**
 - **Docker** - Containerization
@@ -50,12 +53,19 @@ openmesh/
 │   ├── services/        # Business logic layer
 │   │   ├── config_gen/  # Configuration generators
 │   │   ├── image_builder/  # OpenWrt image builder
-│   │   └── monitoring/  # Metrics collection
+│   │   └── monitoring/  # Metrics collection (InfluxDB)
 │   └── workers/         # Celery async workers
-├── frontend/            # Web dashboard (Phase 4)
-├── collectors/          # Node-side monitoring scripts
-├── imagebuilder/        # OpenWrt ImageBuilder
-├── configs/             # Configuration templates
+├── frontend/            # React web dashboard
+│   ├── src/
+│   │   ├── components/  # Reusable UI components
+│   │   ├── pages/       # Page components (Dashboard, Devices, etc.)
+│   │   └── lib/         # API client and utilities
+│   └── vite.config.js   # Vite build configuration
+├── node-scripts/        # Router-side scripts
+│   ├── openmesh-register.sh        # Device registration
+│   └── collect-babel-metrics.sh    # Metrics collection
+├── imagebuilder/        # OpenWrt ImageBuilder storage
+├── firmware/            # Built firmware images
 ├── docker/              # Docker configurations
 └── docs/                # Documentation
 ```
@@ -117,10 +127,11 @@ Client Zone (DHCP Pools):
    ```
 
 5. **Access the platform:**
-   - API: http://localhost:8000
-   - API Docs: http://localhost:8000/docs
-   - InfluxDB UI: http://localhost:8086 (admin/adminadmin)
-   - Health Check: http://localhost:8000/health
+   - **Web Dashboard:** http://localhost:3000
+   - **API:** http://localhost:8000
+   - **API Docs:** http://localhost:8000/docs
+   - **InfluxDB UI:** http://localhost:8086 (admin/adminadmin)
+   - **Health Check:** http://localhost:8000/health
 
 ### Development Commands
 
@@ -270,29 +281,98 @@ script = generator.generate()
 7. **Router joins** mesh network
 8. **Starts reporting** metrics
 
-### Firmware Build Flow (Phase 2)
+### Firmware Build Flow
 
 1. **Define build** via API or web UI
 2. **Celery task** queues build job
-3. **ImageBuilder** generates custom firmware
-4. **Firmware stored** with metadata
-5. **Available for download** or auto-update
+3. **ImageBuilder** downloads OpenWrt, adds packages, includes UCI scripts
+4. **Firmware built** asynchronously (5-15 minutes)
+5. **Firmware stored** with SHA256 checksum
+6. **Available for download** via web UI or API
 
-## Monitoring (Phase 3)
+### Metrics Collection Flow
 
-### Metrics Collection
+1. **Router runs** `collect-babel-metrics.sh` via cron (every 60 seconds)
+2. **Script collects** system metrics (CPU, memory, load, uptime)
+3. **Script queries** Babel daemon on port 33123
+4. **Collects Babel metrics**: neighbors, routes, installed routes, xroutes, RTT
+5. **Sends JSON** to `/api/v1/devices/{id}/heartbeat`
+6. **Platform writes** to InfluxDB (time-series) and SQLite (status)
 
-- **System metrics**: CPU, memory, load, uptime
-- **Babel metrics**: Neighbors, routes, RTT
-- **Link metrics**: Signal strength, throughput
-- **Client metrics**: Connected clients, DHCP leases
+### Current Metrics
 
-### Alerting (Phase 3)
+**Implemented:**
+- ✅ System metrics: CPU, memory (total/free), load average, uptime
+- ✅ Babel metrics: Neighbor count, route count, installed routes, xroutes, avg RTT
+- ✅ Device status: Last seen, online/offline tracking
 
-- **Device offline** - Node unreachable
-- **High latency** - RTT above threshold
-- **Link degraded** - Signal quality issues
-- **Route flapping** - Unstable routes
+**Planned (Phase 4):**
+- ⏳ Per-link metrics: Signal strength, packet loss, throughput
+- ⏳ Client metrics: Connected clients, DHCP leases
+- ⏳ Alerting: Device offline, high latency, link degradation
+- ⏳ Automated notifications: Email, Slack webhooks
+
+## Web Dashboard
+
+The platform includes a modern React-based web dashboard for managing the mesh network.
+
+### Dashboard Features
+
+**Dashboard Page** (`/`)
+- System overview with statistics
+- Online devices / total devices
+- Active networks count
+- Successful firmware builds
+- Network health percentage
+- Recent devices and builds
+
+**Devices Page** (`/devices`)
+- Grid view of all registered devices
+- Search by hostname, MAC address, or IP
+- Filter by status (online, offline, pending, failed)
+- Click through to device details
+
+**Device Detail Page** (`/devices/:id`)
+- Complete device information
+- Network configuration (IP, MAC, DHCP pool)
+- Status indicators and last contact time
+- Device notes
+
+**Networks Page** (`/networks`)
+- List of mesh networks
+- Network CIDR and infrastructure CIDR
+- Mesh SSID and settings
+- Active/inactive status
+
+**Firmware Page** (`/firmware`)
+- List of all firmware builds
+- Search and filter by status
+- Create new firmware builds
+- Download built firmware images
+- Delete old builds
+- View build logs and errors
+
+**Topology Page** (`/topology`)
+- Prepared for D3.js network visualization
+- Will show real-time mesh connections (Phase 4)
+
+**Metrics Page** (`/metrics`)
+- Prepared for Chart.js integration
+- Will show device health charts (Phase 4)
+
+### Router Integration Scripts
+
+**`node-scripts/openmesh-register.sh`**
+- Auto-registers router with platform
+- Receives IP allocation and configuration
+- Applies UCI settings automatically
+
+**`node-scripts/collect-babel-metrics.sh`**
+- Collects system and Babel metrics
+- Runs via cron every 60 seconds
+- Sends heartbeat with metrics to platform
+
+See `node-scripts/README.md` for detailed usage instructions.
 
 ## Development
 
@@ -301,28 +381,40 @@ script = generator.generate()
 ```
 backend/
 ├── api/v1/              # API version 1 endpoints
-│   ├── devices.py       # Device management
+│   ├── devices.py       # Device management & heartbeat
 │   ├── networks.py      # Network management
+│   ├── firmware.py      # Firmware build management
+│   ├── topology.py      # Network topology data
+│   ├── metrics.py       # Time-series metrics queries
 │   └── __init__.py      # Router configuration
 ├── core/                # Core components
 │   ├── config.py        # Settings management
-│   └── database.py      # Database configuration
-├── models/              # Database models
+│   └── database.py      # Async database configuration
+├── models/              # SQLAlchemy database models
 │   ├── device.py        # Device model
 │   ├── network.py       # Network model
 │   ├── firmware.py      # Firmware build model
-│   ├── metric.py        # Metrics models
+│   ├── metric.py        # Metrics models (deprecated)
 │   └── alert.py         # Alert model
-├── schemas/             # Pydantic schemas
+├── schemas/             # Pydantic validation schemas
 │   ├── device.py        # Device schemas
-│   └── network.py       # Network schemas
-├── services/            # Business logic
-│   ├── device_service.py      # Device operations
-│   ├── network_service.py     # Network operations
-│   └── config_gen/            # Configuration generators
-│       ├── ip_allocator.py    # IP allocation
-│       └── uci_generator.py   # UCI script generation
-└── main.py              # FastAPI application
+│   ├── network.py       # Network schemas
+│   └── firmware.py      # Firmware build schemas
+├── services/            # Business logic layer
+│   ├── device_service.py           # Device operations
+│   ├── network_service.py          # Network operations
+│   ├── config_gen/                 # Configuration generators
+│   │   ├── ip_allocator.py         # SHA256-based IP allocation
+│   │   └── uci_generator.py        # UCI script generation
+│   ├── image_builder/              # Firmware building
+│   │   └── builder.py              # OpenWrt ImageBuilder wrapper
+│   └── monitoring/                 # Metrics collection
+│       └── influxdb_client.py      # InfluxDB client
+├── workers/             # Celery async workers
+│   ├── celery_app.py    # Celery configuration
+│   └── tasks/
+│       └── firmware.py  # Firmware build tasks
+└── main.py              # FastAPI application entry point
 ```
 
 ### Adding a New Endpoint
@@ -361,45 +453,56 @@ docker-compose exec backend pytest --cov=backend --cov-report=html
 
 ## Implementation Roadmap
 
-### ✅ Phase 1: Foundation (Weeks 1-2) - COMPLETED
+### ✅ Phase 1: Foundation - COMPLETED
 - [x] Project structure setup
-- [x] Database schema design
-- [x] Basic FastAPI application
+- [x] Database schema design (SQLite + InfluxDB)
+- [x] FastAPI application with async support
 - [x] Docker development environment
 - [x] Device & network models
-- [x] IP allocation algorithm
+- [x] IP allocation algorithm (SHA256-based MAC hashing)
 - [x] UCI configuration generator
-- [x] Basic API endpoints
+- [x] RESTful API endpoints (devices, networks)
 
-### 🔄 Phase 2: Image Builder (Weeks 3-4) - NEXT
-- [ ] OpenWrt ImageBuilder integration
-- [ ] Celery task queue setup
-- [ ] Build configuration templates
-- [ ] Firmware storage and serving
-- [ ] Build status tracking
-- [ ] API endpoints for builds
+### ✅ Phase 2: Firmware Building - COMPLETED
+- [x] OpenWrt ImageBuilder integration
+- [x] Celery task queue setup (Redis broker)
+- [x] Async firmware building workflow
+- [x] Firmware storage and serving
+- [x] Build status tracking (pending → building → success/failed)
+- [x] Firmware API endpoints (create, list, download, delete)
+- [x] Build timeout handling (30 min default)
+- [x] SHA256 checksum generation
 
-### ⏳ Phase 3: Monitoring (Weeks 5-6)
-- [ ] Babel metrics collector
-- [ ] Data ingestion pipeline
-- [ ] Time-series storage optimization
+### ✅ Phase 3: Web Dashboard & Monitoring - COMPLETED
+- [x] React 18 frontend with Vite
+- [x] 9 dashboard pages (Dashboard, Devices, Networks, Firmware, Topology, Metrics, etc.)
+- [x] Device management UI with search & filters
+- [x] Firmware build management UI
+- [x] Network topology API (placeholder for D3.js visualization)
+- [x] Metrics API (InfluxDB queries)
+- [x] Node-side scripts (registration, Babel metrics collection)
+- [x] Real-time metrics storage (InfluxDB)
+- [x] Router auto-registration workflow
+
+### 🔄 Phase 4: Advanced Features - NEXT
+- [ ] D3.js network topology visualization
+- [ ] Chart.js metrics dashboards
+- [ ] WebSocket for real-time updates
+- [ ] Alerting system (email, Slack notifications)
 - [ ] Alert rule engine
-- [ ] Notification system
-- [ ] Metrics API endpoints
-
-### ⏳ Phase 4: Dashboard (Weeks 7-8)
-- [ ] Frontend application setup
-- [ ] Network topology visualization
-- [ ] Real-time metrics display
-- [ ] Device management UI
-- [ ] WebSocket integration
-
-### ⏳ Phase 5: Advanced Features (Weeks 9-10)
-- [ ] Multi-network support
+- [ ] Multi-network isolation
 - [ ] Automated firmware updates
 - [ ] Advanced analytics
+
+### ⏳ Phase 5: Production Hardening
+- [ ] Authentication & authorization (JWT)
+- [ ] API rate limiting
+- [ ] HTTPS/TLS support
+- [ ] Firmware image signing
+- [ ] Backup and restore
+- [ ] High-availability configuration
 - [ ] Performance optimization
-- [ ] Documentation & tutorials
+- [ ] Comprehensive documentation
 
 ## Contributing
 
@@ -431,6 +534,6 @@ MIT License - see LICENSE file for details
 
 ---
 
-**Status:** Phase 1 Complete - Ready for Phase 2 Development
+**Status:** Phase 3 Complete - Full-Stack Platform Ready for Production Testing
 
 Built with ❤️ for the mesh networking community
