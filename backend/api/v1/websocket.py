@@ -120,6 +120,30 @@ async def websocket_endpoint(websocket: WebSocket):
                         websocket,
                     )
 
+                elif subscription_type == "topology":
+                    # Unsubscribe from topology updates
+                    manager.topology_subscriptions.discard(websocket)
+                    await manager.send_personal_message(
+                        {
+                            "type": "unsubscribed",
+                            "subscription": "topology",
+                        },
+                        websocket,
+                    )
+
+                elif subscription_type == "network" and subscription_id:
+                    # Unsubscribe from network updates
+                    if subscription_id in manager.network_subscriptions:
+                        manager.network_subscriptions[subscription_id].discard(websocket)
+                    await manager.send_personal_message(
+                        {
+                            "type": "unsubscribed",
+                            "subscription": "network",
+                            "network_id": subscription_id,
+                        },
+                        websocket,
+                    )
+
                 else:
                     await manager.send_personal_message(
                         {

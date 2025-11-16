@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart3, Router as RouterIcon } from 'lucide-react'
 import { devicesApi } from '../lib/api'
@@ -15,10 +15,12 @@ export default function Metrics() {
   const devices = devicesData?.devices || []
   const onlineDevices = devices.filter(d => d.status === 'online')
 
-  // Auto-select first online device if none selected
-  if (!selectedDeviceId && onlineDevices.length > 0) {
-    setSelectedDeviceId(onlineDevices[0].id)
-  }
+  // Auto-select first online device if none selected (moved to useEffect to prevent infinite loop)
+  useEffect(() => {
+    if (!selectedDeviceId && onlineDevices.length > 0) {
+      setSelectedDeviceId(onlineDevices[0].id)
+    }
+  }, [selectedDeviceId, onlineDevices])
 
   if (isLoading) {
     return <div className="loading">Loading devices...</div>

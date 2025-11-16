@@ -14,7 +14,7 @@ export default function Topology() {
   const queryClient = useQueryClient()
 
   // WebSocket connection for real-time topology updates
-  const { isConnected, subscribe } = useWebSocket('/api/v1/ws', {
+  const { isConnected, subscribe, unsubscribe } = useWebSocket('/api/v1/ws', {
     onMessage: (message) => {
       // Handle real-time topology and device updates
       if (message.type === 'topology_update') {
@@ -33,7 +33,14 @@ export default function Topology() {
     if (isConnected) {
       subscribe('topology')
     }
-  }, [isConnected, subscribe])
+
+    // CRITICAL: Cleanup subscription on unmount to prevent server memory leak
+    return () => {
+      if (unsubscribe) {
+        unsubscribe('topology')
+      }
+    }
+  }, [isConnected, subscribe, unsubscribe])
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['topology', networkFilter],
