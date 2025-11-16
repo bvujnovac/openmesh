@@ -22,6 +22,10 @@ class FirmwareBuildBase(BaseModel):
 class FirmwareBuildCreate(FirmwareBuildBase):
     """Schema for creating a new firmware build."""
 
+    device_key: Optional[str] = Field(
+        None,
+        description="Device profile key (e.g., 'nanostation-m5-xw'). If provided, overrides target/subtarget/profile."
+    )
     network_id: Optional[int] = None
     base_packages: List[str] = Field(default_factory=list)
     custom_packages: List[str] = Field(default_factory=list)

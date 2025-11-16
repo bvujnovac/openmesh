@@ -22,9 +22,38 @@ from backend.models.network import Network
 from backend.workers.tasks.firmware import build_firmware
 from backend.services.image_builder.builder import get_default_packages
 from backend.services.config_gen.uci_generator import UCIGenerator
+from backend.services.image_builder.ubiquiti_profiles import UBIQUITI_DEVICES, get_device_profile
 from datetime import datetime
 
 router = APIRouter()
+
+
+@router.get("/devices/supported")
+async def list_supported_devices():
+    """
+    List all supported hardware devices for firmware builds.
+
+    Returns:
+        List of supported device profiles with hardware specifications
+    """
+    return {
+        "devices": [
+            {
+                "key": key,
+                "name": profile.name,
+                "manufacturer": profile.manufacturer,
+                "model": profile.model,
+                "target": profile.target,
+                "subtarget": profile.subtarget,
+                "profile": profile.openwrt_profile,
+                "flash_size_mb": profile.flash_size_mb,
+                "ram_size_mb": profile.ram_size_mb,
+                "recommended_packages": profile.recommended_packages,
+                "notes": profile.notes,
+            }
+            for key, profile in UBIQUITI_DEVICES.items()
+        ]
+    }
 
 
 @router.get("", response_model=FirmwareBuildListResponse)
@@ -113,6 +142,32 @@ async def create_firmware_build(
     Raises:
         HTTPException: If network not found
     """
+    # If device_key is provided, get device profile and override target/subtarget/profile
+    if build_data.device_key:
+        device_profile = get_device_profile(build_data.device_key)
+        if not device_profile:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown device key: {build_data.device_key}"
+            )
+
+        # Override target/subtarget/profile from device profile
+        build_data.target = device_profile.target
+        build_data.subtarget = device_profile.subtarget
+        build_data.profile = device_profile.openwrt_profile
+
+        # Use recommended packages from profile if no packages specified
+        if not build_data.base_packages:
+            build_data.base_packages = [
+                pkg for pkg in device_profile.recommended_packages
+                if not pkg.startswith("-")
+            ]
+        if not build_data.removed_packages:
+            build_data.removed_packages = [
+                pkg[1:] for pkg in device_profile.recommended_packages
+                if pkg.startswith("-")
+            ]
+
     # Verify network exists if specified
     if build_data.network_id:
         result = await db.execute(

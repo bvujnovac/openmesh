@@ -228,11 +228,20 @@ function CreateBuildModal({ onClose }) {
   const [formData, setFormData] = useState({
     name: '',
     openwrt_version: '23.05.2',
+    device_key: '',
     target: 'ath79',
     subtarget: 'generic',
     profile: '',
     include_uci_defaults: true,
   })
+
+  // Fetch supported devices
+  const { data: devicesData } = useQuery({
+    queryKey: ['supported-devices'],
+    queryFn: () => firmwareApi.getSupportedDevices().then((res) => res.data),
+  })
+
+  const supportedDevices = devicesData?.devices || []
 
   const createMutation = useMutation({
     mutationFn: (data) => firmwareApi.create(data),
@@ -241,6 +250,25 @@ function CreateBuildModal({ onClose }) {
       onClose()
     },
   })
+
+  const handleDeviceSelect = (deviceKey) => {
+    const device = supportedDevices.find((d) => d.key === deviceKey)
+    if (device) {
+      setFormData({
+        ...formData,
+        device_key: deviceKey,
+        target: device.target,
+        subtarget: device.subtarget,
+        profile: device.profile,
+        name: formData.name || `${device.name} Firmware`,
+      })
+    } else {
+      setFormData({
+        ...formData,
+        device_key: '',
+      })
+    }
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -260,6 +288,52 @@ function CreateBuildModal({ onClose }) {
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
             />
+          </div>
+
+          <div className="form-group">
+            <label>Device Type</label>
+            <select
+              value={formData.device_key}
+              onChange={(e) => handleDeviceSelect(e.target.value)}
+            >
+              <option value="">Custom (manual configuration)</option>
+              <optgroup label="Ubiquiti NanoStation">
+                {supportedDevices
+                  .filter((d) => d.key.startsWith('nanostation-') && !d.key.includes('loco'))
+                  .map((device) => (
+                    <option key={device.key} value={device.key}>
+                      {device.name} ({device.flash_size_mb}MB / {device.ram_size_mb}MB RAM)
+                    </option>
+                  ))}
+              </optgroup>
+              <optgroup label="Ubiquiti NanoStation Loco">
+                {supportedDevices
+                  .filter((d) => d.key.includes('loco'))
+                  .map((device) => (
+                    <option key={device.key} value={device.key}>
+                      {device.name} ({device.flash_size_mb}MB / {device.ram_size_mb}MB RAM)
+                    </option>
+                  ))}
+              </optgroup>
+              <optgroup label="Other Ubiquiti">
+                {supportedDevices
+                  .filter(
+                    (d) =>
+                      !d.key.startsWith('nanostation-') &&
+                      !d.key.includes('loco')
+                  )
+                  .map((device) => (
+                    <option key={device.key} value={device.key}>
+                      {device.name} ({device.flash_size_mb}MB / {device.ram_size_mb}MB RAM)
+                    </option>
+                  ))}
+              </optgroup>
+            </select>
+            {formData.device_key && (
+              <small className="form-hint">
+                {supportedDevices.find((d) => d.key === formData.device_key)?.notes}
+              </small>
+            )}
           </div>
 
           <div className="form-group">

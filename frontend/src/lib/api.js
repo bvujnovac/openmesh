@@ -38,6 +38,7 @@ export const firmwareApi = {
       responseType: 'blob',
     })
   },
+  getSupportedDevices: () => api.get('/firmware/devices/supported'),
 }
 
 // Topology API
