@@ -80,6 +80,33 @@ class DeviceStatusUpdate(BaseModel):
     wifi_channels: Optional[str] = None
 
 
+class DeviceHeartbeat(BaseModel):
+    """
+    Schema for autonomous device heartbeat with auto-registration.
+
+    Device identifies itself by MAC address. If not registered, will be
+    auto-registered. IP address is learned from the device, not assigned.
+    """
+
+    mac_address: str = Field(..., pattern=r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+    ip_address: str = Field(..., pattern=r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+    hostname: Optional[str] = Field(None, min_length=1, max_length=255)
+    hardware_model: Optional[str] = None
+    firmware_version: Optional[str] = None
+    kernel_version: Optional[str] = None
+    uptime_seconds: Optional[int] = Field(None, ge=0)
+    load_average: Optional[str] = None
+    memory_total_mb: Optional[int] = None
+    memory_free_mb: Optional[int] = Field(None, ge=0)
+    cpu_usage_percent: Optional[float] = Field(None, ge=0, le=100)
+    neighbor_count: Optional[int] = Field(None, ge=0)
+    route_count: Optional[int] = Field(None, ge=0)
+    installed_route_count: Optional[int] = Field(None, ge=0)
+    xroute_count: Optional[int] = Field(None, ge=0)
+    avg_rtt_ms: Optional[float] = Field(None, ge=0)
+    wifi_channels: Optional[str] = None
+
+
 # Response schemas
 class DeviceResponse(DeviceBase):
     """Schema for device responses."""

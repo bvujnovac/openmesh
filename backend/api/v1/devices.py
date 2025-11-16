@@ -17,6 +17,7 @@ from backend.schemas.device import (
     DeviceConfigResponse,
     DeviceRegister,
     DeviceStatusUpdate,
+    DeviceHeartbeat,
 )
 from backend.services.device_service import DeviceService
 from backend.services.monitoring.influxdb_client import get_influx_client
@@ -181,6 +182,130 @@ async def update_device(
         raise HTTPException(status_code=404, detail="Device not found")
 
     return DeviceResponse.model_validate(device)
+
+
+@router.post("/heartbeat", status_code=204)
+async def autonomous_heartbeat(
+    heartbeat: DeviceHeartbeat, db: AsyncSession = Depends(get_db)
+) -> None:
+    """
+    Autonomous device heartbeat endpoint with auto-registration.
+
+    Devices self-identify by MAC address and report their self-assigned IP.
+    If device doesn't exist, it will be auto-registered.
+
+    This endpoint enables autonomous mesh formation - devices configure themselves
+    locally and then report to the platform for monitoring.
+
+    Args:
+        heartbeat: Device heartbeat data including MAC, IP, and metrics
+        db: Database session
+    """
+    service = DeviceService(db)
+
+    # Check if device exists by MAC address
+    device = await service.get_device_by_mac(heartbeat.mac_address)
+
+    if not device:
+        # Auto-register new device
+        # Platform learns IP from device (not assigned by platform)
+        from backend.models.device import Device
+
+        device = Device(
+            mac_address=heartbeat.mac_address,
+            ip_address=heartbeat.ip_address,  # IP learned from device!
+            hostname=heartbeat.hostname or f"mesh-{heartbeat.mac_address[-8:].replace(':', '')}",
+            hardware_model=heartbeat.hardware_model,
+            firmware_version=heartbeat.firmware_version,
+            status=DeviceStatus.ONLINE,
+            # Note: DHCP pool not known - device configured locally
+            dhcp_pool_start="unknown",
+            dhcp_pool_end="unknown",
+            subnet_id=0,
+        )
+
+        db.add(device)
+        await db.commit()
+        await db.refresh(device)
+
+        # Log auto-registration
+        print(f"Auto-registered device: MAC={heartbeat.mac_address}, IP={heartbeat.ip_address}")
+    else:
+        # Update existing device
+        device.ip_address = heartbeat.ip_address  # Update in case it changed
+        device.hostname = heartbeat.hostname or device.hostname
+        device.firmware_version = heartbeat.firmware_version or device.firmware_version
+        device.hardware_model = heartbeat.hardware_model or device.hardware_model
+        device.status = DeviceStatus.ONLINE
+
+    # Update last seen timestamp
+    from datetime import datetime
+    device.last_seen = datetime.utcnow()
+    await db.commit()
+
+    # Broadcast device status update via WebSocket
+    try:
+        await ws_manager.broadcast_device_update(
+            device_id=device.id,
+            data={
+                "status": device.status.value if device.status else "unknown",
+                "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+                "uptime_seconds": heartbeat.uptime_seconds,
+                "ip_address": device.ip_address,
+            },
+        )
+    except Exception as e:
+        print(f"Warning: Failed to broadcast device update via WebSocket: {e}")
+
+    # Write metrics to InfluxDB
+    try:
+        influx = get_influx_client()
+
+        # Prepare metrics dict from heartbeat
+        metrics = {}
+        if heartbeat.uptime_seconds is not None:
+            metrics["uptime_seconds"] = heartbeat.uptime_seconds
+        if heartbeat.load_average:
+            loads = [float(x) for x in heartbeat.load_average.replace(',', ' ').split() if x.strip()]
+            if len(loads) >= 3:
+                metrics["load_1min"] = loads[0]
+                metrics["load_5min"] = loads[1]
+                metrics["load_15min"] = loads[2]
+        if heartbeat.memory_total_mb is not None:
+            metrics["memory_total_mb"] = heartbeat.memory_total_mb
+        if heartbeat.memory_free_mb is not None:
+            metrics["memory_free_mb"] = heartbeat.memory_free_mb
+        if heartbeat.cpu_usage_percent is not None:
+            metrics["cpu_usage_percent"] = heartbeat.cpu_usage_percent
+        if heartbeat.neighbor_count is not None:
+            metrics["neighbor_count"] = heartbeat.neighbor_count
+            metrics["babel_neighbors"] = heartbeat.neighbor_count
+        if heartbeat.route_count is not None:
+            metrics["route_count"] = heartbeat.route_count
+            metrics["babel_routes"] = heartbeat.route_count
+        if heartbeat.installed_route_count is not None:
+            metrics["installed_route_count"] = heartbeat.installed_route_count
+        if heartbeat.xroute_count is not None:
+            metrics["xroute_count"] = heartbeat.xroute_count
+        if heartbeat.avg_rtt_ms is not None:
+            metrics["avg_rtt_ms"] = heartbeat.avg_rtt_ms
+            metrics["babel_avg_rtt_ms"] = heartbeat.avg_rtt_ms
+
+        # Write to InfluxDB
+        if metrics:
+            influx.write_device_metric(
+                device_id=device.id, device_mac=device.mac_address, metrics=metrics
+            )
+
+            # Broadcast metrics update via WebSocket
+            try:
+                await ws_manager.broadcast_device_metrics(
+                    device_id=device.id, metrics=metrics
+                )
+            except Exception as e:
+                print(f"Warning: Failed to broadcast metrics via WebSocket: {e}")
+    except Exception as e:
+        print(f"Warning: Failed to write metrics to InfluxDB: {e}")
 
 
 @router.post("/{device_id}/heartbeat", status_code=204)
