@@ -10,6 +10,7 @@ A modern, Python-based platform for managing OpenWrt mesh networks. Inspired by 
 ✅ **Profile Discovery** - Automatically discovers all available device profiles
 ✅ **Scalable** - Supports 508+ routers, 64K+ clients
 ✅ **Real-time Monitoring** - Live topology visualization and metrics
+✅ **Auto-Offline Detection** - Automatically marks devices offline after 5 minutes of no heartbeat
 ✅ **Custom Firmware Building** - Per-device or fleet-wide image generation
 ✅ **Babel Routing Protocol** - Efficient mesh routing with automatic failover
 ✅ **Modern Stack** - FastAPI, React, SQLite, InfluxDB
@@ -23,7 +24,8 @@ A modern, Python-based platform for managing OpenWrt mesh networks. Inspired by 
 - **FastAPI** - Modern async Python web framework
 - **SQLAlchemy 2.0** - Database ORM with async support
 - **Pydantic** - Data validation and settings management
-- **Celery** - Distributed task queue for image building
+- **Celery** - Distributed task queue for image building and device monitoring
+- **Celery Beat** - Periodic task scheduler for background jobs
 - **Redis** - Caching and message broker
 
 **Database:**
@@ -624,6 +626,38 @@ The platform includes a modern React-based web dashboard for managing the mesh n
 
 See `node-scripts/README.md` for detailed usage instructions.
 
+### Device Status Monitoring
+
+The platform includes automatic device status monitoring via Celery Beat periodic tasks:
+
+**Auto-Offline Detection:**
+- Background task runs every 60 seconds
+- Detects devices that haven't sent heartbeats within timeout period (default: 300 seconds / 5 minutes)
+- Automatically marks stale devices as OFFLINE
+- Broadcasts status changes via WebSocket to connected clients
+- Configurable timeout via `ALERT_NODE_DOWN_TIMEOUT_SEC` environment variable
+
+**Device Lifecycle:**
+1. Device registered → Status: `PENDING`
+2. First heartbeat received → Status: `ONLINE`
+3. Heartbeats continue every 30 seconds → Status: `ONLINE`, `last_seen` updates
+4. Heartbeats stop → Status: `ONLINE` (for up to 5 minutes grace period)
+5. 5 minutes pass with no heartbeat → Status: `OFFLINE` (auto-detected by background task)
+6. Heartbeats resume → Status: `ONLINE` again
+
+**Background Tasks:**
+- `check_offline_devices` - Runs every 60 seconds to detect offline devices
+- `cleanup_stale_data` - Runs weekly to clean up very old offline devices (90+ days)
+
+**Monitoring:**
+```bash
+# View Celery Beat scheduler logs
+make logs-beat
+
+# View background task execution
+podman logs -f openmesh-celery-beat
+```
+
 ## Development
 
 ### Project Structure
@@ -663,9 +697,10 @@ backend/
 │   └── monitoring/                 # Metrics collection
 │       └── influxdb_client.py      # InfluxDB client
 ├── workers/             # Celery async workers
-│   ├── celery_app.py    # Celery configuration
+│   ├── celery_app.py    # Celery configuration & beat schedule
 │   └── tasks/
-│       └── firmware.py  # Firmware build tasks
+│       ├── firmware.py          # Firmware build tasks
+│       └── device_monitoring.py # Device status monitoring tasks
 └── main.py              # FastAPI application entry point
 ```
 

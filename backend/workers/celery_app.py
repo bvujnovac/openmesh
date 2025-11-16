@@ -13,6 +13,7 @@ celery_app = Celery(
     backend=settings.CELERY_RESULT_BACKEND,
     include=[
         "backend.workers.tasks.firmware",
+        "backend.workers.tasks.device_monitoring",
     ],
 )
 
@@ -34,6 +35,21 @@ celery_app.conf.update(
 # Task routes (can be expanded later)
 celery_app.conf.task_routes = {
     "backend.workers.tasks.firmware.*": {"queue": "firmware"},
+}
+
+# Celery Beat schedule for periodic tasks
+celery_app.conf.beat_schedule = {
+    "check-offline-devices": {
+        "task": "device_monitoring.check_offline_devices",
+        "schedule": 60.0,  # Run every 60 seconds
+        "options": {"expires": 55},  # Expire if not run within 55 seconds
+    },
+    # Optional: cleanup stale data weekly
+    "cleanup-stale-data": {
+        "task": "device_monitoring.cleanup_stale_data",
+        "schedule": 604800.0,  # Run weekly (7 days in seconds)
+        "args": (90,),  # Delete devices offline for 90+ days
+    },
 }
 
 if __name__ == "__main__":
