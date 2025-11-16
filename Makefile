@@ -21,6 +21,7 @@ dev:
 	docker-compose up -d
 	@echo ""
 	@echo "Services started:"
+	@echo "  - Frontend UI: http://localhost:3000"
 	@echo "  - Backend API: http://localhost:8000"
 	@echo "  - API Docs: http://localhost:8000/docs"
 	@echo "  - InfluxDB UI: http://localhost:8086"

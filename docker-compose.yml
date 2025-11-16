@@ -107,6 +107,24 @@ services:
     networks:
       - openmesh-network
 
+  # React Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    container_name: openmesh-frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:8000
+    networks:
+      - openmesh-network
+
   # Nginx Reverse Proxy (optional, for production-like setup)
   # nginx:
   #   image: nginx:alpine
